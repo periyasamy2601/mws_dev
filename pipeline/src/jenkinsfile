@@ -11,7 +11,7 @@ pipeline {
 
   stages {
     stage('Checkout') {
-      agent { label 'Built-In Node' }   // changed from 'any' → use your Jenkins node label
+      agent { label 'build-node' }   // changed from 'any' → use your Jenkins node label
       steps {
         git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
       }
