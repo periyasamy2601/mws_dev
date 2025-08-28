@@ -17,12 +17,16 @@ pipeline {
       }
     }
 
-    stage('Install Dependencies') {
-      agent { docker { image 'node:18-alpine' } }
-      steps {
-        sh 'npm ci'
-      }
+   stage('Install Dependencies') {
+    steps {
+        script {
+            docker.image('node:18-alpine').inside("-v ${WORKSPACE}:/app -w /app") {
+                sh 'npm ci'
+            }
+        }
     }
+}
+
 
     stage('DB Migrations') {
       agent { docker { image 'node:18-alpine' } }
