@@ -11,21 +11,21 @@ pipeline {
 
   stages {
     stage('Checkout') {
-      agent any
+      agent { label 'any' }
       steps {
         git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
       }
     }
 
     stage('Install Dependencies') {
-      agent { docker { image 'node:20-alpine' } }
+      agent { docker { image 'node:18-alpine' } }
       steps {
         sh 'npm ci'
       }
     }
 
     stage('DB Migrations') {
-      agent { docker { image 'node:20-alpine' } }
+      agent { docker { image 'node:18-alpine' } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'pg-cred', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASS')]) {
           sh '''
@@ -42,13 +42,15 @@ pipeline {
       agent { docker { image 'sonarsource/sonar-scanner-cli:latest' } }
       steps {
         withSonarQubeEnv('MySonarQube') {
-          sh 'sonar-scanner'
+          withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+            sh 'sonar-scanner -Dsonar.login=$SONAR_TOKEN'
+          }
         }
       }
     }
 
     stage('Quality Gate') {
-      agent any
+      agent { label 'any' }
       steps {
         script {
           def qg = waitForQualityGate()
@@ -60,14 +62,14 @@ pipeline {
     }
 
     stage('Lint') {
-      agent { docker { image 'node:20-alpine' } }
+      agent { docker { image 'node:18-alpine' } }
       steps {
         sh 'npx eslint .'
       }
     }
 
     stage('Unit Tests') {
-      agent { docker { image 'node:20-alpine' } }
+      agent { docker { image 'node:18-alpine' } }
       steps {
         sh 'npm test -- --coverage'
       }
@@ -93,7 +95,7 @@ pipeline {
     }
 
     stage('Deploy to Dev') {
-      agent any
+      agent { label 'any' }
       steps {
         sh """
           ssh mws_dev@192.168.2.20 '
