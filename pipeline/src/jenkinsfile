@@ -9,13 +9,13 @@ pipeline {
     DB_NAME = "mws_avk_api"
   }
 
-  stages {
-    stage('Checkout') {
-      agent { label 'any' }
-      steps {
-        git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
-      }
-    }
+  stage('Checkout') {
+  agent { label 'build-node' }
+  steps {
+    git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
+  }
+}
+
 
     stage('Install Dependencies') {
       agent { docker { image 'node:18-alpine' } }
