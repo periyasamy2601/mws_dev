@@ -9,13 +9,13 @@ pipeline {
     DB_NAME = "mws_avk_api"
   }
 
-  stage('Checkout') {
-  agent { label 'build-node' }
-  steps {
-    git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
-  }
-}
-
+  stages {
+    stage('Checkout') {
+      agent { label 'build-node' }   // changed from 'any' → use your Jenkins node label
+      steps {
+        git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
+      }
+    }
 
     stage('Install Dependencies') {
       agent { docker { image 'node:18-alpine' } }
@@ -42,15 +42,13 @@ pipeline {
       agent { docker { image 'sonarsource/sonar-scanner-cli:latest' } }
       steps {
         withSonarQubeEnv('MySonarQube') {
-          withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-            sh 'sonar-scanner -Dsonar.login=$SONAR_TOKEN'
-          }
+          sh 'sonar-scanner'
         }
       }
     }
 
     stage('Quality Gate') {
-      agent { label 'any' }
+      agent { label 'build-node' }
       steps {
         script {
           def qg = waitForQualityGate()
@@ -95,7 +93,7 @@ pipeline {
     }
 
     stage('Deploy to Dev') {
-      agent { label 'any' }
+      agent { label 'build-node' }
       steps {
         sh """
           ssh mws_dev@192.168.2.20 '
