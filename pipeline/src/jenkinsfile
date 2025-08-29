@@ -1,68 +1,70 @@
 pipeline {
-  agent none
+    agent any
 
-  stages {
-    stage('Checkout') {
-      agent { label 'build-node' }
-      steps {
-        checkout scm
-      }
+    environment {
+        NODE_ENV = 'development'
     }
 
-    stage('Install Dependencies') {
-      agent { label 'build-node' }
-      steps {
-        dir('src') {
-          sh 'npm install'
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout([$class: 'GitSCM', 
+                          branches: [[name: '*/main']], 
+                          userRemoteConfigs: [[
+                              url: 'https://github.com/periyasamy2601/mws_dev.git', 
+                              credentialsId: 'github_token_dev'
+                          ]]
+                ])
+            }
         }
-      }
-    }
 
-    stage('Build') {
-      agent { label 'build-node' }
-      steps {
-        dir('src') {
-          sh 'npm run build'
+        stage('Install Dependencies') {
+            steps {
+                dir('src') {
+                    sh 'npm install'
+                }
+            }
         }
-      }
-    }
 
-    stage('Test') {
-      agent { label 'build-node' }
-      steps {
-        dir('src') {
-          sh 'npm test || true'  // prevents pipeline failure if no tests yet
+        stage('Build') {
+            steps {
+                dir('src') {
+                    sh 'npm run build'
+                }
+            }
         }
-      }
-    }
 
-    stage('DB Migration') {
-      agent { label 'build-node' }
-      steps {
-        dir('src') {
-          sh 'npm run migrate || true'  // runs migration if script exists
+        stage('Make JS Executable') {
+            steps {
+                dir('src') {
+                    sh 'find ./dist -type f -name "*.js" -exec chmod +x {} \\;'
+                }
+            }
         }
-      }
-    }
 
-    stage('Docker Build & Push') {
-      agent { label 'docker' }
-      steps {
-        dir('src') {
-          sh """
-            docker build -t mwsdev2025/mws_avk_api:1.0.0 .
-            docker push mwsdev2025/mws_avk_api:1.0.0
-          """
+        stage('DB Migration') {
+            steps {
+                dir('src') {
+                    sh 'npm run dev-migrate'
+                }
+            }
         }
-      }
-    }
-  }
 
-  post {
-    always {
-      node('build-node') {
-        cleanWs()
-      }
+        stage('Docker Build & Push') {
+            steps {
+                dir('src') {
+                    sh 'npm run docker:build'
+                    sh 'docker tag mws-dconag-api mwsdev2025/mws_avk_api:latest'
+                    sh 'docker push mwsdev2025/mws_avk_api:latest'
+                }
+            }
+        }
     }
-  }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
 }
