@@ -6,7 +6,7 @@ pipeline {
     DB_HOST            = "192.168.2.20"
     DB_PORT            = "5432"
     DB_NAME            = "mws_avk_api"
-    NODE_ENV           = "development"   // change to stage or production as needed
+    NODE_ENV           = "development"
   }
 
   stages {
@@ -14,7 +14,7 @@ pipeline {
       agent { label 'build-node' }
       steps {
         deleteDir()
-        git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
+        git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git', credentialsId: 'github_token_dev'
       }
     }
 
@@ -38,6 +38,12 @@ pipeline {
           }
         }
       }
+    }
+  }
+
+  post {
+    always {
+      cleanWs()   // clean Jenkins workspace after build
     }
   }
 }
