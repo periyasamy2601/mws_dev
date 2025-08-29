@@ -1,6 +1,10 @@
 pipeline {
   agent none
 
+  options {
+    skipDefaultCheckout(true)
+  }
+
   environment {
     DOCKER_IMAGE       = "mwsdev2025/mws_avk_api"
     SONAR_HOST         = "http://192.168.2.20:9000"
@@ -15,8 +19,8 @@ pipeline {
     stage('Checkout') {
       agent { label 'build-node' }
       steps {
-        deleteDir()   // Clean workspace to avoid old permission issues
-        git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
+        deleteDir()
+        git branch: 'main', credentialsId: 'github_token_dev', url: 'https://github.com/periyasamy2601/mws_dev.git'
       }
     }
 
@@ -30,7 +34,6 @@ pipeline {
     stage('ESLint') {
       agent { label 'build-node' }
       steps {
-        // Run eslint and save report in JSON for SonarQube
         sh 'npx eslint . -f json -o eslint-report.json || true'
       }
     }
@@ -38,17 +41,17 @@ pipeline {
     stage('SonarQube Scan') {
       agent { label 'build-node' }
       steps {
-        withSonarQubeEnv('sonar scanner') {   // must match SonarQube server config in Jenkins
+        withSonarQubeEnv('sonar scanner') {
           script {
-            def scannerHome = tool 'sonar scanner'   // must match tool name in Global Tool Configuration
+            def scannerHome = tool 'sonar scanner'
             sh """
               ${scannerHome}/bin/sonar-scanner \
                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                 -Dsonar.projectName=${SONAR_PROJECT_NAME} \
                 -Dsonar.sources=. \
                 -Dsonar.host.url=${SONAR_HOST} \
-                -Dsonar.scanner.workDirectory=/tmp/.sonar \
-                -Dsonar.eslint.reportPaths=eslint-report.json
+                -Dsonar.eslint.reportPaths=eslint-report.json \
+                -Dsonar.scanner.workDirectory=/tmp/.sonar
             """
           }
         }
@@ -56,4 +59,3 @@ pipeline {
     }
   }
 }
-
