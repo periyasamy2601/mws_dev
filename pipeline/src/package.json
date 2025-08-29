@@ -1,6 +1,6 @@
 {
   "name": "mws_dev",
-  "version": "4.4.1",
+  "version": "1.0.0",
   "description": "mws_dev",
   "keywords": [
     "loopback-application",
@@ -84,7 +84,7 @@
     "moment": "^2.29.4",
     "mqtt": "^5.10.1",
     "multer": "^1.4.5-lts.1",
-    "mws-dconag-core": "3.1.1",
+    "@periyasamy26001/mws_avk_api": "1.0.0",
     "nodemailer": "^6.9.16",
     "pdfmake": "^0.2.13",
     "phone": "^3.1.50",
