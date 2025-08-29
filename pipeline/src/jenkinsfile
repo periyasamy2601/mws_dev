@@ -15,22 +15,30 @@ pipeline {
     stage('Checkout') {
       agent { label 'build-node' }
       steps {
-        deleteDir()   // Clean workspace to avoid old permission issues
-        git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
+        deleteDir()             // Clean workspace
+        checkout scm            // Checkout full repository
+        sh 'ls -la'             // Verify package.json exists
       }
     }
 
     stage('Install Dependencies') {
       agent { label 'build-node' }
       steps {
-        sh 'npm install'
+        script {
+          if (fileExists('node_modules')) {
+            echo "Using cached node_modules"
+          } else {
+            echo "Installing npm dependencies..."
+            sh 'npm install'
+          }
+        }
       }
     }
 
     stage('ESLint') {
       agent { label 'build-node' }
       steps {
-        // Run eslint and save report in JSON for SonarQube
+        // Run ESLint and generate JSON report
         sh 'npx eslint . -f json -o eslint-report.json || true'
       }
     }
@@ -38,17 +46,18 @@ pipeline {
     stage('SonarQube Scan') {
       agent { label 'build-node' }
       steps {
-        withSonarQubeEnv('sonar scanner') {   // must match SonarQube server config in Jenkins
+        withSonarQubeEnv('sonar scanner') {   // Match Jenkins SonarQube server
           script {
-            def scannerHome = tool 'sonar scanner'   // must match tool name in Global Tool Configuration
+            def scannerHome = tool 'sonar scanner'   // Match tool name in Jenkins
             sh """
               ${scannerHome}/bin/sonar-scanner \
                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                 -Dsonar.projectName=${SONAR_PROJECT_NAME} \
                 -Dsonar.sources=. \
                 -Dsonar.host.url=${SONAR_HOST} \
-                -Dsonar.scanner.workDirectory=/tmp/.sonar \
-                -Dsonar.eslint.reportPaths=eslint-report.json
+                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+                -Dsonar.eslint.reportPaths=eslint-report.json \
+                -Dsonar.scanner.workDirectory=/tmp/.sonar
             """
           }
         }
