@@ -1,130 +1,18 @@
-pipeline {
-  agent none
-
-  environment {
-    DOCKER_IMAGE = "mwsdev2025/mws_avk_api"
-    SONAR_HOST = "http://192.168.2.20:9000"
-    DB_HOST = "192.168.2.20"
-    DB_PORT = "5432"
-    DB_NAME = "mws_avk_api"
-  }
-
-  stages {
-    stage('Checkout') {
-      agent { label 'build-node' }   // changed from 'any' → use your Jenkins node label
-      steps {
-        git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
-      }
-    }
-
-   stage('Install Dependencies') {
-    steps {
-        script {
-            docker.image('node:18-alpine').inside("-v ${WORKSPACE}:/app -w /app") {
-                sh 'npm ci'
+stage('SonarQube Scan') {
+            steps {
+                withSonarQubeEnv('MySonarQube') {   // must match Jenkins SonarQube config name
+                    script {
+                        docker.image('sonarsource/sonar-scanner-cli:latest').inside("-v ${WORKSPACE}:/app -w /app") {
+                            sh """
+                                sonar-scanner \
+                                  -Dsonar.projectKey=mws_avk_api \
+                                  -Dsonar.projectName="mws_avk_api" \
+                                  -Dsonar.sources=. \
+                                  -Dsonar.host.url=http://192.168.2.20:9000 \
+                                  -Dsonar.login=${SONAR_AUTH_TOKEN}N}
+                            """
+                        }
+                    }
+                }
             }
         }
-    }
-}
-
-
-    stage('DB Migrations') {
-      agent { docker { image 'node:18-alpine' } }
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'pg-cred', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASS')]) {
-          sh '''
-            apk add --no-cache postgresql-client
-            export PGPASSWORD=${DB_PASS}
-            psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -c "SELECT 1;"
-            npm run migrate || echo "No migrations"
-          '''
-        }
-      }
-    }
-
-    stage('SonarQube Scan') {
-      agent { docker { image 'sonarsource/sonar-scanner-cli:latest' } }
-      steps {
-        withSonarQubeEnv('MySonarQube') {
-          sh 'sonar-scanner'
-        }
-      }
-    }
-
-    stage('Quality Gate') {
-      agent { label 'build-node' }
-      steps {
-        script {
-          def qg = waitForQualityGate()
-          if (qg.status != 'OK') {
-            error "❌ Quality Gate failed: ${qg.status}"
-          }
-        }
-      }
-    }
-
-    stage('Lint') {
-      agent { docker { image 'node:18-alpine' } }
-      steps {
-        sh 'npx eslint .'
-      }
-    }
-
-    stage('Unit Tests') {
-      agent { docker { image 'node:18-alpine' } }
-      steps {
-        sh 'npm test -- --coverage'
-      }
-    }
-
-    stage('Build & Push Docker') {
-      agent { label 'docker' }
-      steps {
-        script {
-          def tag = "${BUILD_NUMBER}"
-          env.IMAGE_TAG = tag
-          withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh """
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              docker build -t ${DOCKER_IMAGE}:${tag} .
-              docker push ${DOCKER_IMAGE}:${tag}
-              docker tag ${DOCKER_IMAGE}:${tag} ${DOCKER_IMAGE}:latest
-              docker push ${DOCKER_IMAGE}:latest
-            """
-          }
-        }
-      }
-    }
-
-    stage('Deploy to Dev') {
-      agent { label 'build-node' }
-      steps {
-        sh """
-          ssh mws_dev@192.168.2.20 '
-            docker pull ${DOCKER_IMAGE}:${IMAGE_TAG} || exit 1
-            docker stop dev_api || true
-            docker rm dev_api || true
-            docker run -d --name dev_api --restart always -p 3000:3000 ${DOCKER_IMAGE}:${IMAGE_TAG}
-          '
-        """
-      }
-    }
-  }
-
-  post {
-    success {
-      echo "✅ CI/CD success"
-    }
-    failure {
-      echo "❌ CI/CD failed - rolling back..."
-      sh """
-        ssh mws_dev@192.168.2.20 '
-          docker pull ${DOCKER_IMAGE}:latest || true
-          docker stop dev_api || true
-          docker rm dev_api || true
-          docker run -d --name dev_api --restart always -p 3000:3000 ${DOCKER_IMAGE}:latest || true
-        '
-      """
-    }
-  }
-}
