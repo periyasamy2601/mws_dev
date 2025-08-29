@@ -20,6 +20,7 @@ pipeline {
     }
 
     stage('SonarQube Scan') {
+      agent { label 'build-node' }
       steps {
         withSonarQubeEnv('MySonarQube') {   // must match Jenkins SonarQube config name
           script {
