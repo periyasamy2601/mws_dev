@@ -1,7 +1,6 @@
 pipeline {
     agent any
     environment {
-        // Add any environment variables you need here
         NODE_ENV = "development"
     }
     stages {
@@ -21,6 +20,13 @@ pipeline {
             }
         }
 
+        stage('Check Node & NPM') {
+            steps {
+                sh 'node -v'
+                sh 'npm -v'
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
                 sh 'npm install'
@@ -35,16 +41,20 @@ pipeline {
 
         stage('Make JS Executable') {
             steps {
-                sh 'find ./dist -type f -name "*.js" -exec chmod +x {} \\;'
+                // Ensure dist exists before running chmod
+                sh '''
+                    if [ -d "./dist" ]; then
+                        find ./dist -type f -name "*.js" -exec chmod +x {} \\;
+                    else
+                        echo "dist folder does not exist yet"
+                    fi
+                '''
             }
         }
 
         stage('DB Migration') {
             steps {
-                script {
-                    // Run migration depending on the environment
-                    sh 'npm run dev-migrate'
-                }
+                sh 'npm run dev-migrate'
             }
         }
 
