@@ -22,7 +22,7 @@ pipeline {
     stage('SonarQube Scan') {
       agent { label 'build-node' }
       steps {
-        withSonarQubeEnv('MySonarQube') {   // must match Jenkins SonarQube config name
+        withSonarQubeEnv('mws_avk_api') {   // must match Jenkins SonarQube config name
           script {
             docker.image('sonarsource/sonar-scanner-cli:latest').inside("-v ${WORKSPACE}:/app -w /app") {
               sh """
