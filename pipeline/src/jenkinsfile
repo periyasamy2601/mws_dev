@@ -18,7 +18,7 @@ pipeline {
         git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
       }
     }
-
+  }
    stage('SonarQube Scan') {
   agent { label 'build-node' }
   steps {
