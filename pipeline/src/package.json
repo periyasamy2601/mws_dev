@@ -1,5 +1,5 @@
 {
-  "name": "@periyasamy2601/mws_avk_api",
+  "name": "@periyasamy2601/mws_dev",
   "version": "1.0.0",
   "description": "mws_dev",
   "keywords": [
@@ -84,7 +84,7 @@
     "moment": "^2.29.4",
     "mqtt": "^5.10.1",
     "multer": "^1.4.5-lts.1",
-    "@periyasamy2601/mws_avk_api": "1.0.0",
+    "@periyasamy2601/mws_dev": "1.0.0",
     "nodemailer": "^6.9.16",
     "pdfmake": "^0.2.13",
     "phone": "^3.1.50",
