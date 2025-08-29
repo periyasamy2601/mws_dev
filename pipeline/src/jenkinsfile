@@ -19,22 +19,23 @@ pipeline {
       }
     }
 
-    stage('SonarQube Scan') {
-      agent { label 'build-node' }
-      steps {
-        withSonarQubeEnv('mws_avk_api') {   // must match Jenkins SonarQube config name
-          script {
-            docker.image('sonarsource/sonar-scanner-cli:latest').inside("-v ${WORKSPACE}:/app -w /app") {
-              sh """
-                sonar-scanner \
-                  -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                  -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                  -Dsonar.sources=. \
-                  -Dsonar.host.url=${SONAR_HOST} \
-                  -Dsonar.login=${SONAR_AUTH_TOKEN}
-              """
-            }
-          }
+   stage('SonarQube Scan') {
+  agent { label 'build-node' }
+  steps {
+    withSonarQubeEnv('mws_avk_api') {   // must match Jenkins SonarQube config name
+      script {
+        docker.image('sonarsource/sonar-scanner-cli:latest').inside(
+          "-v ${WORKSPACE}:/app -w /app " +
+          "-v ${WORKSPACE}/.sonar_cache:/opt/sonar-scanner/.sonar/cache"
+        ) {
+          sh """
+            sonar-scanner \
+              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+              -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+              -Dsonar.sources=. \
+              -Dsonar.host.url=${SONAR_HOST} \
+              -Dsonar.token=${SONAR_AUTH_TOKEN}
+          """
         }
       }
     }
