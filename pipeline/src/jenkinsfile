@@ -1,29 +1,13 @@
 pipeline {
     agent any
     environment {
-        NODE_ENV = "development"
+        NPM_TOKEN = credentials('github_npm_token') // Jenkins secret
     }
     stages {
 
         stage('Checkout SCM') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    doGenerateSubmoduleConfigurations: false,
-                    extensions: [],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/periyasamy2601/mws_dev.git',
-                        credentialsId: 'github_token_dev'
-                    ]]
-                ])
-            }
-        }
-
-        stage('Check Node & NPM') {
-            steps {
-                sh 'node -v'
-                sh 'npm -v'
+                checkout scm
             }
         }
 
@@ -51,20 +35,10 @@ pipeline {
             }
         }
 
-        stage('DB Migration') {
+        stage('Publish to GitHub Packages') {
             steps {
                 dir('pipeline/src') {
-                    sh 'npm run dev-migrate'
-                }
-            }
-        }
-
-        stage('Docker Build & Push') {
-            steps {
-                dir('pipeline/src') {
-                    sh 'npm run docker:build'
-                    sh 'docker tag mws-dconag-api mwsdev2025/mws_avk_api:latest'
-                    sh 'docker push mwsdev2025/mws_avk_api:latest'
+                    sh 'npm publish --access public'
                 }
             }
         }
