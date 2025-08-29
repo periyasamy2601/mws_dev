@@ -29,38 +29,40 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                dir('src') {
+                    sh 'npm install'
+                }
             }
         }
 
         stage('Build') {
             steps {
-                sh 'npm run build'
+                dir('src') {
+                    sh 'npm run build'
+                }
             }
         }
 
         stage('Make JS Executable') {
             steps {
-                // Ensure dist exists before running chmod
-                sh '''
-                    if [ -d "./dist" ]; then
-                        find ./dist -type f -name "*.js" -exec chmod +x {} \\;
-                    else
-                        echo "dist folder does not exist yet"
-                    fi
-                '''
+                dir('src') {
+                    sh 'find ./dist -type f -name "*.js" -exec chmod +x {} \\;'
+                }
             }
         }
 
         stage('DB Migration') {
             steps {
-                sh 'npm run dev-migrate'
+                dir('src') {
+                    sh 'npm run dev-migrate'
+                }
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                sh 'npm run docker:build'
+                sh 'docker login -u <docker_username> -p <docker_password>'
+                sh 'docker build -t mws-dconag-api src/'
                 sh 'docker tag mws-dconag-api mwsdev2025/mws_avk_api:latest'
                 sh 'docker push mwsdev2025/mws_avk_api:latest'
             }
