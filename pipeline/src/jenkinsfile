@@ -22,9 +22,9 @@ pipeline {
     stage('SonarQube Scan') {
       agent { label 'build-node' }
       steps {
-        withSonarQubeEnv('mws_avk_api') {   // must match SonarQube server config in Jenkins
+        withSonarQubeEnv('sonar scanner') {   // must match SonarQube server config in Jenkins
           script {
-            def scannerHome = tool 'mws_avk_api'   // must match tool name in Global Tool Configuration
+            def scannerHome = tool 'sonar scanner'   // must match tool name in Global Tool Configuration
             sh """
               ${scannerHome}/bin/sonar-scanner \
                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
