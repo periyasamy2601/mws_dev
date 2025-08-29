@@ -25,7 +25,7 @@ pipeline {
       steps {
         withSonarQubeEnv('sonar scanner') {   // must match SonarQube server config in Jenkins
           script {
-            def scannerHome = tool 'SonarScanner'   // must match tool name in Global Tool Configuration
+            def scannerHome = tool 'Sonar Scanner'   // must match tool name in Global Tool Configuration
             sh """
               ${scannerHome}/bin/sonar-scanner \
                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
