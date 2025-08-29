@@ -29,7 +29,7 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir('src') {
+                dir('pipeline/src') {
                     sh 'npm install'
                 }
             }
@@ -37,7 +37,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                dir('src') {
+                dir('pipeline/src') {
                     sh 'npm run build'
                 }
             }
@@ -45,7 +45,7 @@ pipeline {
 
         stage('Make JS Executable') {
             steps {
-                dir('src') {
+                dir('pipeline/src') {
                     sh 'find ./dist -type f -name "*.js" -exec chmod +x {} \\;'
                 }
             }
@@ -53,7 +53,7 @@ pipeline {
 
         stage('DB Migration') {
             steps {
-                dir('src') {
+                dir('pipeline/src') {
                     sh 'npm run dev-migrate'
                 }
             }
@@ -62,7 +62,7 @@ pipeline {
         stage('Docker Build & Push') {
             steps {
                 sh 'docker login -u <docker_username> -p <docker_password>'
-                sh 'docker build -t mws-dconag-api src/'
+                sh 'docker build -t mws-dconag-api pipeline/src/'
                 sh 'docker tag mws-dconag-api mwsdev2025/mws_avk_api:latest'
                 sh 'docker push mwsdev2025/mws_avk_api:latest'
             }
