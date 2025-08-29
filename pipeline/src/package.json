@@ -34,22 +34,22 @@
     "minify": "uglifyjs-folder dist/ -e -o release/ -x .js",
     "prestart": "npm run rebuild",
     "start": "node -r source-map-support/register .",
-    "dev-migrate": "export NODE_ENV=development || set NODE_ENV=development&& node dist/migrate",
+    "dev-migrate": "export NODE_ENV=development || set NODE_ENV=development && node dist/migrate",
     "stage-migrate": "export NODE_ENV=stage && node dist/migrate",
     "prod-migrate": "export NODE_ENV=production && node dist/migrate",
-    "dev": "export NODE_ENV=development || set NODE_ENV=development&& npm run clean && npm run build && npm run start:watch",
-    "stage": "export NODE_ENV=stage || set NODE_ENV=stage&& npm run rebuild && node build/dist/index.js",
-    "prod": "export NODE_ENV=production || set NODE_ENV=production&& npm run rebuild && node build/dist/index.js",
+    "dev": "export NODE_ENV=development || set NODE_ENV=development && npm run clean && npm run build && npm run start:watch",
+    "stage": "export NODE_ENV=stage || set NODE_ENV=stage && npm run rebuild && node build/dist/index.js",
+    "prod": "export NODE_ENV=production || set NODE_ENV=production && npm run rebuild && node build/dist/index.js",
     "start:watch": "tsc-watch --target es2017 --outDir ./dist --onSuccess \"node .\"",
     "clean": "lb-clean dist *.tsbuildinfo .eslintcache",
     "rebuild": "npm run clean && npm run build && npm run minify"
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/periyasamy2601/mws_dev.git"
   },
-  "author": "",
-  "license": "",
+  "author": "Your Name <you@example.com>",
+  "license": "ISC",
   "files": [
     "README.md",
     "dist",
@@ -84,7 +84,6 @@
     "moment": "^2.29.4",
     "mqtt": "^5.10.1",
     "multer": "^1.4.5-lts.1",
-    "@periyasamy2601/mws_dev": "1.0.0",
     "nodemailer": "^6.9.16",
     "pdfmake": "^0.2.13",
     "phone": "^3.1.50",
