@@ -35,16 +35,18 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 dir("${SRC_DIR}") {
-                    withSonarQubeEnv('sonar scanner') {
-                        def scannerHome = tool 'sonar scanner'
-                        sh """
-                            ${scannerHome}/bin/sonar-scanner \
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=${SONAR_HOST} \
-                            -Dsonar.scanner.workDirectory=/tmp/.sonar
-                        """
+                    script {
+                        withSonarQubeEnv('sonar scanner') {
+                            def scannerHome = tool 'sonar scanner'
+                            sh """
+                                ${scannerHome}/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONAR_HOST} \
+                                -Dsonar.scanner.workDirectory=/tmp/.sonar
+                            """
+                        }
                     }
                 }
             }
@@ -118,7 +120,9 @@ pipeline {
         stage('Make JS Executable') {
             agent { label 'build-node' }
             steps {
-                sh "find ${DIST_DIR} -type f -name '*.js' -exec chmod +x {} \\;"
+                script {
+                    sh "find ${DIST_DIR} -type f -name '*.js' -exec chmod +x {} \\;"
+                }
             }
         }
 
