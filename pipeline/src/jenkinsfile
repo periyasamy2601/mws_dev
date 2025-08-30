@@ -60,6 +60,7 @@ pipeline {
             steps {
                 script {
                     dir("${SRC_DIR}") {
+                        sh 'ls -al' 
                         sh 'npm install'
                         sh 'npm install --save-dev @loopback/build'
                     }
