@@ -2,11 +2,11 @@
   "$schema": "http://json.schemastore.org/tsconfig",
   "extends": "@loopback/build/config/tsconfig.common.json",
   "compilerOptions": {
-    "outDir": "../dist",     // put compiled files in pipeline/dist
-    "rootDir": ".",          // current folder is root
+    "outDir": "../dist",
+    "rootDir": ".",
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "include": ["**/*.ts"],    // include all TS files in current folder
+  "include": ["**/*.ts"],
   "exclude": ["node_modules", "../dist"]
 }
