@@ -136,7 +136,7 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            agent { label 'docker-node' }
+            agent { label 'build-node' }
             steps {
                 dir('pipeline') {
                     sh """
