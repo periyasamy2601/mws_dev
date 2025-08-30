@@ -17,7 +17,8 @@ pipeline {
         DB_PASS            = "qwert"
         NPM_TOKEN          = credentials('github_npm_token')
         BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
-        DIST_DIR           = "${WORKSPACE}/dist"
+        SRC_DIR            = "${WORKSPACE}/pipeline/src"
+        DIST_DIR           = "${SRC_DIR}/dist"
     }
 
     stages {
@@ -33,19 +34,17 @@ pipeline {
         stage('SonarQube Scan') {
             agent { label 'build-node' }
             steps {
-                dir('pipeline/src') {
-                    script {
-                        withSonarQubeEnv('sonar scanner') {
-                            def scannerHome = tool 'sonar scanner'
-                            sh """
-                                ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONAR_HOST} \
-                                -Dsonar.scanner.workDirectory=/tmp/.sonar
-                            """
-                        }
+                dir("${SRC_DIR}") {
+                    withSonarQubeEnv('sonar scanner') {
+                        def scannerHome = tool 'sonar scanner'
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=${SONAR_HOST} \
+                            -Dsonar.scanner.workDirectory=/tmp/.sonar
+                        """
                     }
                 }
             }
@@ -54,7 +53,7 @@ pipeline {
         stage('Install Dependencies') {
             agent { label 'build-node' }
             steps {
-                dir('pipeline/src') {
+                dir("${SRC_DIR}") {
                     sh 'npm install'
                     sh 'npm install --save-dev @loopback/build'
                 }
@@ -64,7 +63,7 @@ pipeline {
         stage('Build Application') {
             agent { label 'build-node' }
             steps {
-                dir('pipeline/src') {
+                dir("${SRC_DIR}") {
                     sh 'npm run build'
                 }
             }
@@ -73,16 +72,11 @@ pipeline {
         stage('Check for Migration Scripts') {
             agent { label 'build-node' }
             steps {
-                dir('pipeline/src') {
+                dir("${SRC_DIR}") {
                     script {
                         def migrationFiles = sh(script: "ls migrate.ts || true", returnStdout: true).trim()
-                        if (migrationFiles) {
-                            echo "Migration script detected: migrate.ts"
-                            env.MIGRATIONS_EXIST = 'true'
-                        } else {
-                            echo "No migration script detected."
-                            env.MIGRATIONS_EXIST = 'false'
-                        }
+                        env.MIGRATIONS_EXIST = migrationFiles ? 'true' : 'false'
+                        echo env.MIGRATIONS_EXIST == 'true' ? "Migration script detected" : "No migration script found"
                     }
                 }
             }
@@ -97,7 +91,7 @@ pipeline {
                 }
             }
             steps {
-                dir('pipeline/src') {
+                dir("${SRC_DIR}") {
                     script {
                         try {
                             echo "Backing up database..."
@@ -143,7 +137,7 @@ pipeline {
         stage('Publish to GitHub Packages') {
             agent { label 'build-node' }
             steps {
-                dir('pipeline/src') {
+                dir("${SRC_DIR}") {
                     sh 'npm publish --access public'
                 }
             }
