@@ -6,11 +6,16 @@ pipeline {
     }
 
     environment {
+        DOCKER_IMAGE       = "mwsdev2025/mws_avk_api"
+        SONAR_HOST         = "http://192.168.2.20:9000"
+        SONAR_PROJECT_KEY  = "mws_avk_api"
+        SONAR_PROJECT_NAME = "mws_avk_api"
         DB_HOST            = "192.168.2.20"
         DB_PORT            = "5432"
         DB_NAME            = "mws_avk_api"
         DB_USER            = "mws_avk_api"
         DB_PASS            = "qwert"
+        NPM_TOKEN          = credentials('github_npm_token')
         BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
         SRC_DIR            = "${WORKSPACE}/pipeline/src"
         DIST_DIR           = "${SRC_DIR}/dist"
@@ -27,33 +32,128 @@ pipeline {
             }
         }
 
-        // Run Database Migrations stage
+        // SonarQube Scan stage
+        stage('SonarQube Scan') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    dir("${SRC_DIR}") {
+                        withSonarQubeEnv('sonar scanner') {
+                            def scannerHome = tool 'sonar scanner'
+                            sh """
+                                ${scannerHome}/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONAR_HOST} \
+                                -Dsonar.scanner.workDirectory=/tmp/.sonar
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        // Install Dependencies
+        stage('Install Dependencies') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    dir("${SRC_DIR}") {
+                        sh 'npm install'
+                        sh 'npm install --save-dev @loopback/build'
+                    }
+                }
+            }
+        }
+
+        // Build Application (compiling TypeScript files to dist/)
+        stage('Build Application') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    dir("${SRC_DIR}") {
+                        sh 'npm run build' // This will compile TypeScript to JavaScript in dist/
+                    }
+                }
+            }
+        }
+
+        // Check if Migration Scripts exist
+        stage('Check for Migration Scripts') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    def migrationFiles = sh(script: "ls migrate.ts || true", returnStdout: true).trim()
+                    env.MIGRATIONS_EXIST = migrationFiles ? 'true' : 'false'
+                    echo env.MIGRATIONS_EXIST == 'true' ? "Migration script detected" : "No migration script found"
+                }
+            }
+        }
+
+        // Run Database Migrations if MIGRATE is true and migration scripts exist
         stage('Run Database Migrations') {
             agent { label 'build-node' }
             when {
-                expression { return params.MIGRATE == true }
+                allOf {
+                    expression { return params.MIGRATE == true }
+                    expression { return env.MIGRATIONS_EXIST == 'true' }
+                }
             }
             steps {
                 script {
+                    try {
+                        echo "Backing up database..."
+                        sh """
+                            PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                            -F p -f ${BACKUP_FILE} ${DB_NAME}
+                        """
+                        echo "Running migrations..."
+                        sh "node ${DIST_DIR}/migrate.js"  // Running migrate.js from dist/
+                        echo "Migrations completed."
+                    } catch (err) {
+                        echo "Migration failed! Restoring database..."
+                        sh """
+                            PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                            -d ${DB_NAME} -f ${BACKUP_FILE}
+                        """
+                        error "Migration failed. Database restored."
+                    }
+                }
+            }
+        }
+
+        // Make JS Executable
+        stage('Make JS Executable') {
+            agent { label 'build-node' }
+            steps {
+                script {
                     def DIST_DIR = "${SRC_DIR}/dist"
+                    sh "find ${DIST_DIR} -type f -name '*.js' -exec chmod +x {} \\;"
+                }
+            }
+        }
+
+        // Build Docker Image
+        stage('Build Docker Image') {
+            agent { label 'docker-node' }
+            steps {
+                dir('pipeline') {
+                    sh """
+                        docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
+                        docker push ${DOCKER_IMAGE}:latest
+                    """
+                }
+            }
+        }
+
+        // Publish to GitHub Packages
+        stage('Publish to GitHub Packages') {
+            agent { label 'build-node' }
+            steps {
+                script {
                     dir("${SRC_DIR}") {
-                        try {
-                            echo "Backing up database..."
-                            sh """
-                                PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                                -F p -f ${BACKUP_FILE} ${DB_NAME}
-                            """
-                            echo "Running migrations..."
-                            sh "node ${DIST_DIR}/migrate.js"
-                            echo "Migrations completed."
-                        } catch (err) {
-                            echo "Migration failed! Restoring database..."
-                            sh """
-                                PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                                -d ${DB_NAME} -f ${BACKUP_FILE}
-                            """
-                            error "Migration failed. Database restored."
-                        }
+                        sh 'npm publish --access public'
                     }
                 }
             }
