@@ -17,13 +17,10 @@ pipeline {
         DB_PASS            = "qwert"
         NPM_TOKEN          = credentials('github_npm_token')
         BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
-        SRC_DIR            = "${WORKSPACE}/pipeline/src"
-        DIST_DIR           = "${SRC_DIR}/dist"
     }
 
     stages {
 
-        // Checkout stage to pull the latest code
         stage('Checkout') {
             agent { label 'build-node' }
             steps {
@@ -32,11 +29,11 @@ pipeline {
             }
         }
 
-        // SonarQube Scan stage
         stage('SonarQube Scan') {
             agent { label 'build-node' }
             steps {
                 script {
+                    def SRC_DIR = "pipeline/src"
                     dir("${SRC_DIR}") {
                         withSonarQubeEnv('sonar scanner') {
                             def scannerHome = tool 'sonar scanner'
@@ -54,13 +51,12 @@ pipeline {
             }
         }
 
-        // Install Dependencies
         stage('Install Dependencies') {
             agent { label 'build-node' }
             steps {
                 script {
+                    def SRC_DIR = "pipeline/src"
                     dir("${SRC_DIR}") {
-                        sh 'ls -al' 
                         sh 'npm install'
                         sh 'npm install --save-dev @loopback/build'
                     }
@@ -68,74 +64,77 @@ pipeline {
             }
         }
 
-        // Build Application (compiling TypeScript files to dist/)
         stage('Build Application') {
             agent { label 'build-node' }
             steps {
                 script {
+                    def SRC_DIR = "pipeline/src"
                     dir("${SRC_DIR}") {
-                        sh 'npm run build' // This will compile TypeScript to JavaScript in dist/
+                        sh 'npm run build'
                     }
                 }
             }
         }
 
-        // Check if Migration Scripts exist
         stage('Check for Migration Scripts') {
             agent { label 'build-node' }
             steps {
                 script {
-                    def migrationFiles = sh(script: "ls migrate.ts || true", returnStdout: true).trim()
-                    env.MIGRATIONS_EXIST = migrationFiles ? 'true' : 'false'
-                    echo env.MIGRATIONS_EXIST == 'true' ? "Migration script detected" : "No migration script found"
-                }
-            }
-        }
-
-        // Run Database Migrations if MIGRATE is true and migration scripts exist
-        stage('Run Database Migrations') {
-            agent { label 'build-node' }
-            when {
-                allOf {
-                    expression { return params.MIGRATE == true }
-                    expression { return env.MIGRATIONS_EXIST == 'true' }
-                }
-            }
-            steps {
-                script {
-                    try {
-                        echo "Backing up database..."
-                        sh """
-                            PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                            -F p -f ${BACKUP_FILE} ${DB_NAME}
-                        """
-                        echo "Running migrations..."
-                        sh "node ${DIST_DIR}/migrate.js"  // Running migrate.js from dist/
-                        echo "Migrations completed."
-                    } catch (err) {
-                        echo "Migration failed! Restoring database..."
-                        sh """
-                            PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                            -d ${DB_NAME} -f ${BACKUP_FILE}
-                        """
-                        error "Migration failed. Database restored."
+                    def SRC_DIR = "pipeline/src"
+                    dir("${SRC_DIR}") {
+                        def migrationFiles = sh(script: "ls migrate.ts || true", returnStdout: true).trim()
+                        env.MIGRATIONS_EXIST = migrationFiles ? 'true' : 'false'
+                        echo env.MIGRATIONS_EXIST == 'true' ? "Migration script detected" : "No migration script found"
                     }
                 }
             }
         }
 
-        // Make JS Executable
+        stage('Run Database Migrations') {
+            agent { label 'build-node' }
+            when {
+                allOf {
+                    expression { params.MIGRATE == true }
+                    expression { env.MIGRATIONS_EXIST == 'true' }
+                }
+            }
+            steps {
+                script {
+                    def SRC_DIR = "pipeline/src"
+                    def DIST_DIR = "dist"
+                    dir("${SRC_DIR}") {
+                        try {
+                            echo "Backing up database..."
+                            sh """
+                                PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                                -F p -f ${BACKUP_FILE} ${DB_NAME}
+                            """
+                            echo "Running migrations..."
+                            sh "node ${DIST_DIR}/migrate.js"
+                            echo "Migrations completed."
+                        } catch (err) {
+                            echo "Migration failed! Restoring database..."
+                            sh """
+                                PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                                -d ${DB_NAME} -f ${BACKUP_FILE}
+                            """
+                            error "Migration failed. Database restored."
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Make JS Executable') {
             agent { label 'build-node' }
             steps {
                 script {
-                    def DIST_DIR = "${SRC_DIR}/dist"
+                    def DIST_DIR = "pipeline/src/dist"
                     sh "find ${DIST_DIR} -type f -name '*.js' -exec chmod +x {} \\;"
                 }
             }
         }
 
-        // Build Docker Image
         stage('Build Docker Image') {
             agent { label 'docker-node' }
             steps {
@@ -148,11 +147,11 @@ pipeline {
             }
         }
 
-        // Publish to GitHub Packages
         stage('Publish to GitHub Packages') {
             agent { label 'build-node' }
             steps {
                 script {
+                    def SRC_DIR = "pipeline/src"
                     dir("${SRC_DIR}") {
                         sh 'npm publish --access public'
                     }
