@@ -97,7 +97,7 @@
     "yarn": "^1.22.22"
   },
   "devDependencies": {
-    "@loopback/build": "^11.0.6",
+    "@loopback/build": "^9.0.6",
     "@loopback/eslint-config": "^15.0.4",
     "@loopback/testlab": "^7.0.6",
     "@types/amqplib": "0.10.3",
