@@ -17,6 +17,7 @@ pipeline {
         DB_PASS            = "qwert"
         NPM_TOKEN          = credentials('github_npm_token')
         BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
+        DIST_DIR           = "${WORKSPACE}/dist"
     }
 
     stages {
@@ -34,21 +35,16 @@ pipeline {
             steps {
                 dir('pipeline/src') {
                     script {
-                        try {
-                            withSonarQubeEnv('sonar scanner') {
-                                def scannerHome = tool 'sonar scanner'
-                                sh """
-                                    ${scannerHome}/bin/sonar-scanner \
-                                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                    -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                                    -Dsonar.sources=. \
-                                    -Dsonar.host.url=${SONAR_HOST} \
-                                    -Dsonar.scanner.workDirectory=/tmp/.sonar
-                                """
-                            }
-                            echo "SonarQube scan passed."
-                        } catch (err) {
-                            error "SonarQube scan failed."
+                        withSonarQubeEnv('sonar scanner') {
+                            def scannerHome = tool 'sonar scanner'
+                            sh """
+                                ${scannerHome}/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONAR_HOST} \
+                                -Dsonar.scanner.workDirectory=/tmp/.sonar
+                            """
                         }
                     }
                 }
@@ -60,8 +56,16 @@ pipeline {
             steps {
                 dir('pipeline/src') {
                     sh 'npm install'
-                    // Ensure loopback build tools installed
                     sh 'npm install --save-dev @loopback/build'
+                }
+            }
+        }
+
+        stage('Build Application') {
+            agent { label 'build-node' }
+            steps {
+                dir('pipeline/src') {
+                    sh 'npm run build'
                 }
             }
         }
@@ -88,43 +92,31 @@ pipeline {
             agent { label 'build-node' }
             when {
                 allOf {
-                    expression { return params.MIGRATE == true }
-                    expression { return env.MIGRATIONS_EXIST == 'true' }
+                    expression { params.MIGRATE == true }
+                    expression { env.MIGRATIONS_EXIST == 'true' }
                 }
             }
             steps {
                 dir('pipeline/src') {
-                    echo "Running migrations via migrate.sh..."
                     script {
                         try {
-                            echo "Backing up database before migration..."
+                            echo "Backing up database..."
                             sh """
                                 PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
                                 -F p -f ${BACKUP_FILE} ${DB_NAME}
                             """
-                            sh """
-                                chmod +x migrate.sh
-                                ./migrate.sh
-                            """
-                            echo "Database migrations completed successfully."
+                            echo "Running migrations..."
+                            sh "node ${DIST_DIR}/migrate.js"
+                            echo "Migrations completed."
                         } catch (err) {
-                            echo "Migration failed! Restoring database from backup..."
+                            echo "Migration failed! Restoring database..."
                             sh """
                                 PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
                                 -d ${DB_NAME} -f ${BACKUP_FILE}
                             """
-                            error "Migration failed. Database restored. Pipeline stopped."
+                            error "Migration failed. Database restored."
                         }
                     }
-                }
-            }
-        }
-
-        stage('Build Application') {
-            agent { label 'build-node' }
-            steps {
-                dir('pipeline/src') {
-                    sh 'npm run build'
                 }
             }
         }
@@ -132,18 +124,16 @@ pipeline {
         stage('Make JS Executable') {
             agent { label 'build-node' }
             steps {
-                dir('pipeline/src') {
-                    sh 'find ./dist -type f -name "*.js" -exec chmod +x {} \\;'
-                }
+                sh "find ${DIST_DIR} -type f -name '*.js' -exec chmod +x {} \\;"
             }
         }
 
         stage('Build Docker Image') {
             agent { label 'docker-node' }
             steps {
-                dir('pipeline/src') {
+                dir('pipeline') {
                     sh """
-                        docker build -t ${DOCKER_IMAGE}:latest .
+                        docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
                         docker push ${DOCKER_IMAGE}:latest
                     """
                 }
