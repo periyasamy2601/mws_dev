@@ -55,6 +55,15 @@ pipeline {
             }
         }
 
+        stage('Clean Workspace') {
+            agent { label 'build-node' }
+            steps {
+                dir('pipeline/src') {
+                    sh 'rm -rf dist node_modules'
+                }
+            }
+        }
+
         stage('Install Dependencies') {
             agent { label 'build-node' }
             steps {
@@ -97,7 +106,8 @@ pipeline {
                         try {
                             echo "Backing up database before migration..."
                             sh """
-                                PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} -F c -b -v -f ${BACKUP_FILE} ${DB_NAME}
+                                PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                                --no-owner --no-privileges -F c -f ${BACKUP_FILE} ${DB_NAME}
                             """
                             sh """
                                 chmod +x migrate.sh
@@ -107,7 +117,8 @@ pipeline {
                         } catch (err) {
                             echo "Migration failed! Restoring database from backup..."
                             sh """
-                                PGPASSWORD=${DB_PASS} pg_restore -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} -d ${DB_NAME} -c ${BACKUP_FILE}
+                                PGPASSWORD=${DB_PASS} pg_restore -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                                -d ${DB_NAME} -c ${BACKUP_FILE}
                             """
                             error "Migration failed. Database restored. Pipeline stopped."
                         }
@@ -134,7 +145,7 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Push Docker Image') {
             agent { label 'docker-node' }
             steps {
                 dir('pipeline/src') {
@@ -154,15 +165,14 @@ pipeline {
                 }
             }
         }
-
     }
 
     post {
         success {
-            echo "Pipeline finished successfully."
+            echo "✅ Pipeline finished successfully."
         }
         failure {
-            echo "Pipeline failed."
+            echo "❌ Pipeline failed."
         }
         always {
             cleanWs()
