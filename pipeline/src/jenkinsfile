@@ -55,20 +55,13 @@ pipeline {
             }
         }
 
-        stage('Clean Workspace') {
-            agent { label 'build-node' }
-            steps {
-                dir('pipeline/src') {
-                    sh 'rm -rf dist node_modules'
-                }
-            }
-        }
-
         stage('Install Dependencies') {
             agent { label 'build-node' }
             steps {
                 dir('pipeline/src') {
                     sh 'npm install'
+                    // Ensure loopback build tools installed
+                    sh 'npm install --save-dev @loopback/build'
                 }
             }
         }
@@ -107,7 +100,7 @@ pipeline {
                             echo "Backing up database before migration..."
                             sh """
                                 PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                                --no-owner --no-privileges -F c -f ${BACKUP_FILE} ${DB_NAME}
+                                -F p -f ${BACKUP_FILE} ${DB_NAME}
                             """
                             sh """
                                 chmod +x migrate.sh
@@ -117,8 +110,8 @@ pipeline {
                         } catch (err) {
                             echo "Migration failed! Restoring database from backup..."
                             sh """
-                                PGPASSWORD=${DB_PASS} pg_restore -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                                -d ${DB_NAME} -c ${BACKUP_FILE}
+                                PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                                -d ${DB_NAME} -f ${BACKUP_FILE}
                             """
                             error "Migration failed. Database restored. Pipeline stopped."
                         }
@@ -145,7 +138,7 @@ pipeline {
             }
         }
 
-        stage('Build & Push Docker Image') {
+        stage('Build Docker Image') {
             agent { label 'docker-node' }
             steps {
                 dir('pipeline/src') {
@@ -165,14 +158,15 @@ pipeline {
                 }
             }
         }
+
     }
 
     post {
         success {
-            echo "✅ Pipeline finished successfully."
+            echo "Pipeline finished successfully."
         }
         failure {
-            echo "❌ Pipeline failed."
+            echo "Pipeline failed."
         }
         always {
             cleanWs()
