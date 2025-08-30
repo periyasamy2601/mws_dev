@@ -1,6 +1,10 @@
 pipeline {
     agent none
 
+    parameters {
+        booleanParam(name: 'MIGRATE', defaultValue: true, description: 'Run database migrations')
+    }
+
     environment {
         DOCKER_IMAGE       = "mwsdev2025/mws_avk_api"
         SONAR_HOST         = "http://192.168.2.20:9000"
@@ -12,6 +16,7 @@ pipeline {
         DB_USER            = "mws_avk_api"
         DB_PASS            = "qwert"
         NPM_TOKEN          = credentials('github_npm_token')
+        BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
     }
 
     stages {
@@ -27,17 +32,24 @@ pipeline {
         stage('SonarQube Scan') {
             agent { label 'build-node' }
             steps {
-                withSonarQubeEnv('sonar scanner') {
+                dir('pipeline/src') {
                     script {
-                        def scannerHome = tool 'sonar scanner'
-                        sh """
-                            ${scannerHome}/bin/sonar-scanner \
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=${SONAR_HOST} \
-                            -Dsonar.scanner.workDirectory=/tmp/.sonar
-                        """
+                        try {
+                            withSonarQubeEnv('sonar scanner') {
+                                def scannerHome = tool 'sonar scanner'
+                                sh """
+                                    ${scannerHome}/bin/sonar-scanner \
+                                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                    -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                                    -Dsonar.sources=. \
+                                    -Dsonar.host.url=${SONAR_HOST} \
+                                    -Dsonar.scanner.workDirectory=/tmp/.sonar
+                                """
+                            }
+                            echo "SonarQube scan passed."
+                        } catch (err) {
+                            error "SonarQube scan failed."
+                        }
                     }
                 }
             }
@@ -57,12 +69,12 @@ pipeline {
             steps {
                 dir('pipeline/src') {
                     script {
-                        def migrationFiles = sh(script: "ls migrations/*.ts || true", returnStdout: true).trim()
+                        def migrationFiles = sh(script: "ls migrate.ts || true", returnStdout: true).trim()
                         if (migrationFiles) {
-                            echo "New migration scripts detected:\n${migrationFiles}"
+                            echo "Migration script detected: migrate.ts"
                             env.MIGRATIONS_EXIST = 'true'
                         } else {
-                            echo "No migration scripts detected."
+                            echo "No migration script detected."
                             env.MIGRATIONS_EXIST = 'false'
                         }
                     }
@@ -73,27 +85,38 @@ pipeline {
         stage('Run Database Migrations') {
             agent { label 'build-node' }
             when {
-                expression { return env.MIGRATIONS_EXIST == 'true' }
+                allOf {
+                    expression { return params.MIGRATE == true }
+                    expression { return env.MIGRATIONS_EXIST == 'true' }
+                }
             }
             steps {
                 dir('pipeline/src') {
-                    echo "Running database migrations..."
-                    sh """
-                        export DB_HOST=${DB_HOST}
-                        export DB_PORT=${DB_PORT}
-                        export DB_USER=${DB_USER}
-                        export DB_PASS=${DB_PASS}
-                        export DB_NAME=${DB_NAME}
-
-                        npx typeorm migration:run --config ./ormconfig.json
-                    """
-                    // Or for Sequelize:
-                    // sh 'npx sequelize db:migrate'
+                    echo "Running migrations via migrate.sh..."
+                    script {
+                        try {
+                            echo "Backing up database before migration..."
+                            sh """
+                                PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} -F c -b -v -f ${BACKUP_FILE} ${DB_NAME}
+                            """
+                            sh """
+                                chmod +x migrate.sh
+                                ./migrate.sh
+                            """
+                            echo "Database migrations completed successfully."
+                        } catch (err) {
+                            echo "Migration failed! Restoring database from backup..."
+                            sh """
+                                PGPASSWORD=${DB_PASS} pg_restore -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} -d ${DB_NAME} -c ${BACKUP_FILE}
+                            """
+                            error "Migration failed. Database restored. Pipeline stopped."
+                        }
+                    }
                 }
             }
         }
 
-        stage('Build') {
+        stage('Build Application') {
             agent { label 'build-node' }
             steps {
                 dir('pipeline/src') {
@@ -111,6 +134,18 @@ pipeline {
             }
         }
 
+        stage('Build Docker Image') {
+            agent { label 'docker-node' }
+            steps {
+                dir('pipeline/src') {
+                    sh """
+                        docker build -t ${DOCKER_IMAGE}:latest .
+                        docker push ${DOCKER_IMAGE}:latest
+                    """
+                }
+            }
+        }
+
         stage('Publish to GitHub Packages') {
             agent { label 'build-node' }
             steps {
@@ -123,14 +158,14 @@ pipeline {
     }
 
     post {
-        always {
-            cleanWs()
-        }
         success {
-            echo 'Pipeline finished successfully.'
+            echo "Pipeline finished successfully."
         }
         failure {
-            echo 'Pipeline failed.'
+            echo "Pipeline failed."
+        }
+        always {
+            cleanWs()
         }
     }
 }
