@@ -6,21 +6,19 @@ pipeline {
     }
 
     environment {
-        DOCKER_IMAGE       = "mwsdev2025/mws_avk_api"
-        SONAR_HOST         = "http://192.168.2.20:9000"
-        SONAR_PROJECT_KEY  = "mws_avk_api"
-        SONAR_PROJECT_NAME = "mws_avk_api"
         DB_HOST            = "192.168.2.20"
         DB_PORT            = "5432"
         DB_NAME            = "mws_avk_api"
         DB_USER            = "mws_avk_api"
         DB_PASS            = "qwert"
-        NPM_TOKEN          = credentials('github_npm_token')
         BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
+        SRC_DIR            = "${WORKSPACE}/pipeline/src"
+        DIST_DIR           = "${SRC_DIR}/dist"
     }
 
     stages {
 
+        // Checkout stage to pull the latest code
         stage('Checkout') {
             agent { label 'build-node' }
             steps {
@@ -29,79 +27,15 @@ pipeline {
             }
         }
 
-        stage('SonarQube Scan') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        withSonarQubeEnv('sonar scanner') {
-                            def scannerHome = tool 'sonar scanner'
-                            sh """
-                                ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONAR_HOST} \
-                                -Dsonar.scanner.workDirectory=/tmp/.sonar
-                            """
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Install Dependencies') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        sh 'npm install'
-                        sh 'npm install --save-dev @loopback/build'
-                    }
-                }
-            }
-        }
-
-        stage('Build Application') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        sh 'npm run build'
-                    }
-                }
-            }
-        }
-
-        stage('Check for Migration Scripts') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        def migrationFiles = sh(script: "ls migrate.ts || true", returnStdout: true).trim()
-                        env.MIGRATIONS_EXIST = migrationFiles ? 'true' : 'false'
-                        echo env.MIGRATIONS_EXIST == 'true' ? "Migration script detected" : "No migration script found"
-                    }
-                }
-            }
-        }
-
+        // Run Database Migrations stage
         stage('Run Database Migrations') {
             agent { label 'build-node' }
             when {
-                allOf {
-                    expression { params.MIGRATE == true }
-                    expression { env.MIGRATIONS_EXIST == 'true' }
-                }
+                expression { return params.MIGRATE == true }
             }
             steps {
                 script {
-                    def SRC_DIR = "pipeline/src"
-                    def DIST_DIR = "dist"
+                    def DIST_DIR = "${SRC_DIR}/dist"
                     dir("${SRC_DIR}") {
                         try {
                             echo "Backing up database..."
@@ -120,40 +54,6 @@ pipeline {
                             """
                             error "Migration failed. Database restored."
                         }
-                    }
-                }
-            }
-        }
-
-        stage('Make JS Executable') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def DIST_DIR = "pipeline/src/dist"
-                    sh "find ${DIST_DIR} -type f -name '*.js' -exec chmod +x {} \\;"
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            agent { label 'docker-node' }
-            steps {
-                dir('pipeline') {
-                    sh """
-                        docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
-                        docker push ${DOCKER_IMAGE}:latest
-                    """
-                }
-            }
-        }
-
-        stage('Publish to GitHub Packages') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        sh 'npm publish --access public'
                     }
                 }
             }
