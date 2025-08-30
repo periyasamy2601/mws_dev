@@ -101,7 +101,7 @@ pipeline {
             steps {
                 script {
                     def SRC_DIR = "pipeline/src"
-                    def DIST_DIR = "${SRC_DIR}/dist"
+                    def DIST_DIR = "dist"
                     dir("${SRC_DIR}") {
                         try {
                             echo "Backing up database..."
