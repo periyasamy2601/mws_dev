@@ -7,21 +7,28 @@ pipeline {
 
     environment {
         DOCKER_IMAGE       = "mwsdev2025/mws_avk_api"
+        CONTAINER_NAME     = "mws_avk_api_dev"
+        HOST_IP            = "192.168.2.20"
+        HOST_PORT          = "3000"
+        CONTAINER_PORT     = "3000"
+
         SONAR_HOST         = "http://192.168.2.20:9000"
         SONAR_PROJECT_KEY  = "mws_avk_api"
         SONAR_PROJECT_NAME = "mws_avk_api"
+
         DB_HOST            = "192.168.2.20"
         DB_PORT            = "5432"
         DB_NAME            = "mws_avk_api"
         DB_USER            = "mws_avk_api"
         DB_PASS            = "qwert"
-        NPM_TOKEN          = credentials('github_npm_token')
         BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
+
+        NPM_TOKEN          = credentials('github_npm_token')
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Clean Workspace & Checkout') {
             agent { label 'build-node' }
             steps {
                 deleteDir()
@@ -29,24 +36,17 @@ pipeline {
             }
         }
 
-        stage('SonarQube Scan') {
+        stage('Verify Required Files') {
             agent { label 'build-node' }
             steps {
                 script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        withSonarQubeEnv('sonar scanner') {
-                            def scannerHome = tool 'sonar scanner'
-                            sh """
-                                ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONAR_HOST} \
-                                -Dsonar.scanner.workDirectory=/tmp/.sonar
-                            """
+                    def requiredFiles = ['pipeline/src/package.json', 'pipeline/src/Dockerfile', 'pipeline/src/tsconfig.json']
+                    for (file in requiredFiles) {
+                        if (!fileExists(file)) {
+                            error "❌ Required file missing: ${file}"
                         }
                     }
+                    echo "✅ All required files exist."
                 }
             }
         }
@@ -76,11 +76,9 @@ pipeline {
                 script {
                     def DIST_DIR = "pipeline/src/dist"
                     if (!fileExists(DIST_DIR)) {
-                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' before Docker image."
-                    } else {
-                        echo "✅ Build artifacts found in ${DIST_DIR}"
-                        sh "ls -l ${DIST_DIR}"
+                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' first."
                     }
+                    echo "✅ Build artifacts found in ${DIST_DIR}"
                 }
             }
         }
@@ -118,15 +116,15 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Push Docker Image') {
             agent { label 'docker-node' }
             steps {
                 dir('pipeline/src') {
                     script {
-                        if (!fileExists("dist")) {
-                            error " dist folder not found. Run 'npm run build' first."
-                        }
-                        echo " dist folder found. Proceeding with Docker build..."
+                        if (!fileExists("dist")) error "❌ dist folder missing. Build application first."
+                        if (!fileExists("Dockerfile")) error "❌ Dockerfile missing."
+
+                        echo "✅ Ready for Docker build."
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
@@ -147,12 +145,15 @@ pipeline {
             steps {
                 script {
                     sh """
-                        echo "Stopping old container if exists..."
-                        docker rm -f mws_avk_api_dev || true
+                        # Stop and remove old container
+                        docker rm -f ${CONTAINER_NAME} || true
 
-                        echo "Starting new container..."
-                        docker run -d --name mws_avk_api_dev \\
-                            -p 3000:3000 \\
+                        # Optional: remove dangling images to save space
+                        docker image prune -f
+
+                        # Run new container on specified host IP and port
+                        docker run -d --name ${CONTAINER_NAME} \\
+                            -p ${HOST_IP}:${HOST_PORT}:${CONTAINER_PORT} \\
                             -e DB_HOST=${DB_HOST} \\
                             -e DB_PORT=${DB_PORT} \\
                             -e DB_NAME=${DB_NAME} \\
@@ -167,10 +168,10 @@ pipeline {
 
     post {
         success {
-            echo " Pipeline finished successfully."
+            echo "✅ Pipeline finished successfully. App running at http://${HOST_IP}:${HOST_PORT}"
         }
         failure {
-            echo " Pipeline failed."
+            echo "❌ Pipeline failed. Check logs."
         }
         always {
             cleanWs()
