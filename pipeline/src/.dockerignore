@@ -5,5 +5,14 @@ npm-debug.log
 # Ignore local build caches
 *.tsbuildinfo
 
-# Do NOT ignore dist (we need it for Docker image)
-# /dist   ❌ removed this line
+# Ignore local environment files
+.env
+.vscode/
+.idea/
+
+# Do NOT ignore dist (needed for Docker)
+# /dist ❌ removed
+
+# Ignore tests
+__tests__/
+*.spec.ts
