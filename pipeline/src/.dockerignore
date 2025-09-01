@@ -1,5 +1,8 @@
 node_modules
 npm-debug.log
+
+# Ignore top-level dist, but not src/dist
 /dist
-# Cache used by TypeScript's incremental build
+!src/dist
+
 *.tsbuildinfo
