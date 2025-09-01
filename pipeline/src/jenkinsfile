@@ -1,4 +1,3 @@
-
 pipeline {
     agent none
 
@@ -33,20 +32,16 @@ pipeline {
         stage('SonarQube Scan') {
             agent { label 'build-node' }
             steps {
-                script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        withSonarQubeEnv('sonar scanner') {
-                            def scannerHome = tool 'sonar scanner'
-                            sh """
-                                ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONAR_HOST} \
-                                -Dsonar.scanner.workDirectory=/tmp/.sonar
-                            """
-                        }
+                dir("pipeline/src") {
+                    withSonarQubeEnv('sonar scanner') {
+                        sh """
+                            sonar-scanner \
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=${SONAR_HOST} \
+                            -Dsonar.scanner.workDirectory=/tmp/.sonar
+                        """
                     }
                 }
             }
@@ -77,7 +72,7 @@ pipeline {
                 script {
                     def DIST_DIR = "pipeline/src/dist"
                     if (!fileExists(DIST_DIR)) {
-                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' before Docker image."
+                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' first."
                     } else {
                         echo "✅ Build artifacts found in ${DIST_DIR}"
                         sh "ls -l ${DIST_DIR}"
@@ -125,9 +120,9 @@ pipeline {
                 dir('pipeline/src') {
                     script {
                         if (!fileExists("dist")) {
-                            error " dist folder not found. Run 'npm run build' first."
+                            error "dist folder not found. Run 'npm run build' first."
                         }
-                        echo " dist folder found. Proceeding with Docker build..."
+                        echo "dist folder found. Proceeding with Docker build..."
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
@@ -168,13 +163,15 @@ pipeline {
 
     post {
         success {
-            echo " Pipeline finished successfully."
+            echo "Pipeline finished successfully."
         }
         failure {
-            echo " Pipeline failed."
+            echo "Pipeline failed."
         }
         always {
-            cleanWs()
+            node { // ✅ Fixes agent none error
+                cleanWs()
+            }
         }
     }
 }
