@@ -34,7 +34,8 @@ pipeline {
             steps {
                 dir("pipeline/src") {
                     withSonarQubeEnv('sonar scanner') {
-                        def scannerHome = tool 'sonar scanner'
+                        // Proper tool declaration
+                        def scannerHome = tool name: 'sonar scanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
                         sh """
                             ${scannerHome}/bin/sonar-scanner \
                             -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
@@ -125,7 +126,7 @@ pipeline {
                         }
                         echo "✅ dist folder found. Proceeding with Docker build..."
 
-                        // Use VERSION and BUILD_NUMBER from .env for tagging
+                        // Docker tag from .env VERSION + Jenkins BUILD_NUMBER
                         def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
@@ -146,7 +147,7 @@ pipeline {
             agent { label 'docker-node' }
             steps {
                 script {
-                    def IMAGE_TAG = "${VERSION}-${BUILD_NUMBER}"
+                    def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
                     sh """
                         echo "Stopping old container if exists..."
                         docker rm -f mws_avk_api_dev || true
