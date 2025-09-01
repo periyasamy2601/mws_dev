@@ -128,7 +128,6 @@ pipeline {
                         }
                         echo " dist folder found. Proceeding with Docker build..."
 
-                        // Login to Docker Hub using Jenkins credentials
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
                                                           passwordVariable: 'DOCKER_PASS')]) {
@@ -143,11 +142,24 @@ pipeline {
             }
         }
 
-        stage('Publish to GitHub Packages') {
-            agent { label 'build-node' }
+        stage('Deploy to Development') {
+            agent { label 'docker-node' }
             steps {
-                dir("pipeline/src") {
-                    sh 'npm publish --access public'
+                script {
+                    sh """
+                        echo "Stopping old container if exists..."
+                        docker rm -f mws_avk_api_dev || true
+
+                        echo "Starting new container..."
+                        docker run -d --name mws_avk_api_dev \\
+                            -p 3000:3000 \\
+                            -e DB_HOST=${DB_HOST} \\
+                            -e DB_PORT=${DB_PORT} \\
+                            -e DB_NAME=${DB_NAME} \\
+                            -e DB_USER=${DB_USER} \\
+                            -e DB_PASS=${DB_PASS} \\
+                            ${DOCKER_IMAGE}:latest
+                    """
                 }
             }
         }
