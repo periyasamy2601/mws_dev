@@ -10,22 +10,10 @@ pipeline {
         stage('Load Environment') {
             agent { label 'build-node' }
             steps {
-                dir('pipeline/src') {
-                    script {
-                        // Read .env and load into env[]
-                        def props = readFile('.env').split('\n').findAll { it && !it.startsWith('#') }
-                        props.each { line ->
-                            def (key, value) = line.split('=', 2)
-                            // Replace ${BUILD_NUMBER} fallback to 1
-                            value = value.trim().replaceAll(/\$\{BUILD_NUMBER\}/, env.BUILD_NUMBER ?: '1')
-                            // Replace ${SONAR_TOKEN} fallback
-                            value = value.replaceAll(/\$\{SONAR_TOKEN\}/, env.SONAR_TOKEN ?: 'sonarqube_token')
-                            // Replace ${NPM_TOKEN} fallback
-                            value = value.replaceAll(/\$\{NPM_TOKEN\}/, env.NPM_TOKEN ?: 'your_npm_token_here')
-                            env[key.trim()] = value
-                        }
-                        echo "✅ Environment variables loaded from .env"
-                    }
+                script {
+                    def envProps = readProperties file: 'pipeline/src/.env'
+                    envProps.each { key, value -> env["${key}"] = "${value}" }
+                    echo "✅ Environment variables loaded from .env"
                 }
             }
         }
@@ -34,17 +22,18 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 deleteDir()
-                git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git', credentialsId: 'github_token_dev'
+                git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
             }
         }
 
         stage('SonarQube Scan') {
             agent { label 'build-node' }
             steps {
-                dir("pipeline/src") {
-                    withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
-                        withEnv(["SONAR_USER_HOME=${env.WORKSPACE}/.sonar"]) {
-                            script {
+                script {
+                    def SRC_DIR = "pipeline/src"
+                    dir("${SRC_DIR}") {
+                        withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
+                            withEnv(["SONAR_USER_HOME=${env.WORKSPACE}/.sonar"]) {
                                 def scannerHome = tool 'sonar scanner'
                                 sh """
                                     ${scannerHome}/bin/sonar-scanner \
@@ -138,14 +127,13 @@ pipeline {
                             error "❌ dist folder not found. Run 'npm run build' first."
                         }
 
-                        // IMAGE_TAG includes BUILD_NUMBER fallback
-                        def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER ?: '1'}"
+                        def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
 
-                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds',
-                                                          usernameVariable: 'DOCKER_USER',
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
+                                                          usernameVariable: 'DOCKER_USER', 
                                                           passwordVariable: 'DOCKER_PASS')]) {
                             sh """
-                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                                docker login -u $DOCKER_USER -p $DOCKER_PASS
                                 docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -f Dockerfile .
                                 docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
                             """
@@ -159,7 +147,7 @@ pipeline {
             agent { label 'docker-node' }
             steps {
                 script {
-                    def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER ?: '1'}"
+                    def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
                     sh """
                         docker rm -f mws_avk_api_dev || true
                         docker run -d --name mws_avk_api_dev \
