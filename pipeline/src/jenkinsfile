@@ -76,6 +76,21 @@ pipeline {
             }
         }
 
+        stage('Verify Build Artifacts') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    def DIST_DIR = "pipeline/src/dist"
+                    if (!fileExists(DIST_DIR)) {
+                        error "Build artifacts not found in ${DIST_DIR}. Run 'npm run build' before building Docker image."
+                    } else {
+                        echo "✅ Build artifacts found in ${DIST_DIR}"
+                        sh "ls -l ${DIST_DIR}"
+                    }
+                }
+            }
+        }
+
         stage('Check for Migration Scripts') {
             agent { label 'build-node' }
             steps {
@@ -135,17 +150,17 @@ pipeline {
             }
         }
 
-       stage('Build Docker Image') {
-    agent { label 'docker-node' }
-    steps {
-        dir('pipeline/src') {
-            sh """
-                docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
-                docker push ${DOCKER_IMAGE}:latest
-            """
+        stage('Build Docker Image') {
+            agent { label 'docker-node' }
+            steps {
+                dir('pipeline/src') {
+                    sh """
+                        docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
+                        docker push ${DOCKER_IMAGE}:latest
+                    """
+                }
+            }
         }
-    }
-}
 
         stage('Publish to GitHub Packages') {
             agent { label 'build-node' }
