@@ -1,8 +1,9 @@
+# Ignore dependencies
 node_modules
 npm-debug.log
 
-# Ignore top-level dist, but not src/dist
-/dist
-!src/dist
-
+# Ignore local build caches
 *.tsbuildinfo
+
+# Do NOT ignore dist (we need it for Docker image)
+# /dist   ❌ removed this line
