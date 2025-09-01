@@ -11,7 +11,6 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 script {
-                    // Load environment variables from .env
                     def envProps = readProperties file: 'pipeline/src/.env'
                     envProps.each { key, value ->
                         env["${key}"] = "${value}"
@@ -34,10 +33,8 @@ pipeline {
             steps {
                 dir("pipeline/src") {
                     withSonarQubeEnv('sonar scanner') {
-                        // Proper tool declaration
-                        def scannerHome = tool name: 'sonar scanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
                         sh """
-                            ${scannerHome}/bin/sonar-scanner \
+                            sonar-scanner \
                             -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                             -Dsonar.projectName=${SONAR_PROJECT_NAME} \
                             -Dsonar.sources=. \
@@ -122,15 +119,15 @@ pipeline {
                 dir('pipeline/src') {
                     script {
                         if (!fileExists("dist")) {
-                            error " dist folder not found. Run 'npm run build' first."
+                            error "❌ dist folder not found. Run 'npm run build' first."
                         }
                         echo "✅ dist folder found. Proceeding with Docker build..."
 
-                        // Docker tag from .env VERSION + Jenkins BUILD_NUMBER
+                        // Tag using VERSION and BUILD_NUMBER from .env
                         def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
 
-                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
-                                                          usernameVariable: 'DOCKER_USER', 
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds',
+                                                          usernameVariable: 'DOCKER_USER',
                                                           passwordVariable: 'DOCKER_PASS')]) {
                             sh """
                                 docker login -u $DOCKER_USER -p $DOCKER_PASS
