@@ -32,16 +32,15 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 dir("pipeline/src") {
-                    withSonarQubeEnv('sonar scanner') {
-                        sh """
-                            sonar-scanner \
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=${SONAR_HOST} \
-                            -Dsonar.scanner.workDirectory=/tmp/.sonar
-                        """
-                    }
+                    sh """
+                        sonar-scanner \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=${SONAR_HOST} \
+                        -Dsonar.login=${SONAR_TOKEN} \
+                        -Dsonar.scanner.workDirectory=/tmp/.sonar
+                    """
                 }
             }
         }
@@ -119,11 +118,9 @@ pipeline {
                 dir('pipeline/src') {
                     script {
                         if (!fileExists("dist")) {
-                            error "❌ dist folder not found. Run 'npm run build' first."
+                            error " dist folder not found. Run 'npm run build' first."
                         }
-                        echo "✅ dist folder found. Proceeding with Docker build..."
 
-                        // Tag using VERSION and BUILD_NUMBER from .env
                         def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds',
@@ -146,10 +143,7 @@ pipeline {
                 script {
                     def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
                     sh """
-                        echo "Stopping old container if exists..."
                         docker rm -f mws_avk_api_dev || true
-
-                        echo "Starting new container..."
                         docker run -d --name mws_avk_api_dev \\
                             -p 3000:3000 \\
                             -e DB_HOST=${DB_HOST} \\
