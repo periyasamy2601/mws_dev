@@ -135,18 +135,17 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            agent { label 'docker-node' }
-            steps {
-                script {
-                    // Use repo root as build context and point to Dockerfile in pipeline/src
-                    sh """
-                        docker build -t ${DOCKER_IMAGE}:latest -f pipeline/src/Dockerfile .
-                        docker push ${DOCKER_IMAGE}:latest
-                    """
-                }
-            }
+       stage('Build Docker Image') {
+    agent { label 'docker-node' }
+    steps {
+        dir('pipeline/src') {
+            sh """
+                docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
+                docker push ${DOCKER_IMAGE}:latest
+            """
         }
+    }
+}
 
         stage('Publish to GitHub Packages') {
             agent { label 'build-node' }
