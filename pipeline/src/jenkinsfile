@@ -11,6 +11,7 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 script {
+                    // Load .env into environment variables
                     def envProps = readProperties file: 'pipeline/src/.env'
                     envProps.each { key, value -> env["${key}"] = "${value}" }
                     echo "✅ Environment variables loaded from .env"
@@ -30,17 +31,16 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
+                    dir("pipeline/src") {
                         withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
                             withEnv(["SONAR_USER_HOME=${env.WORKSPACE}/.sonar"]) {
                                 def scannerHome = tool 'sonar scanner'
                                 sh """
                                     ${scannerHome}/bin/sonar-scanner \
-                                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                    -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                                    -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
+                                    -Dsonar.projectName=${env.SONAR_PROJECT_NAME} \
                                     -Dsonar.sources=. \
-                                    -Dsonar.host.url=${SONAR_HOST} \
+                                    -Dsonar.host.url=${env.SONAR_HOST} \
                                     -Dsonar.login=${SONAR_TOKEN} \
                                     -Dsonar.scanner.workDirectory=${env.WORKSPACE}/.sonar
                                 """
@@ -99,8 +99,8 @@ pipeline {
                         try {
                             echo "Backing up database..."
                             sh """
-                                PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                                -F p -f ${BACKUP_FILE} ${DB_NAME}
+                                PGPASSWORD=${env.DB_PASS} pg_dump -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
+                                -F p -f ${env.BACKUP_FILE} ${env.DB_NAME}
                             """
                             echo "Running migrations..."
                             sh "node dist/migrate.js"
@@ -108,8 +108,8 @@ pipeline {
                         } catch (err) {
                             echo "❌ Migration failed! Restoring database..."
                             sh """
-                                PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
-                                -d ${DB_NAME} -f ${BACKUP_FILE}
+                                PGPASSWORD=${env.DB_PASS} psql -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
+                                -d ${env.DB_NAME} -f ${env.BACKUP_FILE}
                             """
                             error "Migration failed. Database restored."
                         }
@@ -127,18 +127,22 @@ pipeline {
                             error "❌ dist folder not found. Run 'npm run build' first."
                         }
 
-                        // Resolve Jenkins build number, default to 1
-                        def IMAGE_TAG = "${VERSION}.${env.BUILD_NUMBER ?: '1'}"
+                        // Use Jenkins BUILD_NUMBER or fallback to 1
+                        def IMAGE_TAG = "${env.VERSION}.${env.BUILD_NUMBER ?: 1}"
 
-                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds',
-                                                          usernameVariable: 'DOCKER_USER',
-                                                          passwordVariable: 'DOCKER_PASS')]) {
+                        withCredentials([usernamePassword(
+                            credentialsId: 'docker-hub-creds',
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )]) {
                             sh """
-                                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                                docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -f Dockerfile .
-                                docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                                docker build -t ${env.DOCKER_IMAGE}:${IMAGE_TAG} -f Dockerfile .
+                                docker push ${env.DOCKER_IMAGE}:${IMAGE_TAG}
                             """
                         }
+
+                        echo "✅ Docker image ${env.DOCKER_IMAGE}:${IMAGE_TAG} built and pushed successfully."
                     }
                 }
             }
@@ -148,17 +152,17 @@ pipeline {
             agent { label 'docker-node' }
             steps {
                 script {
-                    def IMAGE_TAG = "${VERSION}.${env.BUILD_NUMBER ?: '1'}"
+                    def IMAGE_TAG = "${env.VERSION}.${env.BUILD_NUMBER ?: 1}"
                     sh """
                         docker rm -f mws_avk_api_dev || true
                         docker run -d --name mws_avk_api_dev \
                             -p 3000:3000 \
-                            -e DB_HOST=${DB_HOST} \
-                            -e DB_PORT=${DB_PORT} \
-                            -e DB_NAME=${DB_NAME} \
-                            -e DB_USER=${DB_USER} \
-                            -e DB_PASS=${DB_PASS} \
-                            ${DOCKER_IMAGE}:${IMAGE_TAG}
+                            -e DB_HOST=${env.DB_HOST} \
+                            -e DB_PORT=${env.DB_PORT} \
+                            -e DB_NAME=${env.DB_NAME} \
+                            -e DB_USER=${env.DB_USER} \
+                            -e DB_PASS=${env.DB_PASS} \
+                            ${env.DOCKER_IMAGE}:${IMAGE_TAG}
                     """
                 }
             }
