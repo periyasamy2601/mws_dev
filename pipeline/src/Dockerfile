@@ -20,7 +20,7 @@ COPY --chown=node package*.json ./
 # Install only production dependencies
 RUN npm install --omit=dev
 
-# Copy build artifacts and config
+# Copy build artifacts and pm2 config
 COPY --chown=node dist ./dist
 COPY --chown=node pm2.config.js ./pm2.config.js
 
