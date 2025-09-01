@@ -18,8 +18,8 @@ pipeline {
         DB_PASS            = "qwert"
         NPM_TOKEN          = credentials('github_npm_token')
         BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
-        BUILD_NUMBER       = "${env.BUILD_NUMBER}"  // Jenkins build number
-        DOCKER_TAG         = "${params.VERSION}.${env.BUILD_NUMBER}"
+        BUILD_NUMBER       = "${env.BUILD_NUMBER}"   // Jenkins build number
+        DOCKER_TAG         = "${params.VERSION}-${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -32,7 +32,94 @@ pipeline {
             }
         }
 
-        // ... other stages remain the same ...
+        stage('SonarQube Scan') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    def SRC_DIR = "pipeline/src"
+                    dir("${SRC_DIR}") {
+                        withSonarQubeEnv('sonar scanner') {
+                            def scannerHome = tool 'sonar scanner'
+                            sh """
+                                ${scannerHome}/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONAR_HOST} \
+                                -Dsonar.scanner.workDirectory=/tmp/.sonar
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            agent { label 'build-node' }
+            steps {
+                dir("pipeline/src") {
+                    sh 'npm install'
+                    sh 'npm install --save-dev @loopback/build'
+                }
+            }
+        }
+
+        stage('Build Application') {
+            agent { label 'build-node' }
+            steps {
+                dir("pipeline/src") {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Verify Build Artifacts') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    def DIST_DIR = "pipeline/src/dist"
+                    if (!fileExists(DIST_DIR)) {
+                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' before Docker image."
+                    } else {
+                        echo "✅ Build artifacts found in ${DIST_DIR}"
+                        sh "ls -l ${DIST_DIR}"
+                    }
+                }
+            }
+        }
+
+        stage('Run Database Migrations') {
+            agent { label 'build-node' }
+            when {
+                allOf {
+                    expression { params.MIGRATE == true }
+                    expression { fileExists('pipeline/src/dist/migrate.js') }
+                }
+            }
+            steps {
+                dir("pipeline/src") {
+                    script {
+                        try {
+                            echo "Backing up database..."
+                            sh """
+                                PGPASSWORD=${DB_PASS} pg_dump -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                                -F p -f ${BACKUP_FILE} ${DB_NAME}
+                            """
+                            echo "Running migrations..."
+                            sh "node dist/migrate.js"
+                            echo "✅ Migrations completed."
+                        } catch (err) {
+                            echo "❌ Migration failed! Restoring database..."
+                            sh """
+                                PGPASSWORD=${DB_PASS} psql -h ${DB_HOST} -U ${DB_USER} -p ${DB_PORT} \
+                                -d ${DB_NAME} -f ${BACKUP_FILE}
+                            """
+                            error "Migration failed. Database restored."
+                        }
+                    }
+                }
+            }
+        }
 
         stage('Build Docker Image') {
             agent { label 'docker-node' }
@@ -92,7 +179,7 @@ pipeline {
             echo "Pipeline failed."
         }
         always {
-            node('build-node') {
+            node('build-node') {  // ✅ Specify node context for always
                 cleanWs()
             }
         }
