@@ -1,34 +1,22 @@
-# Use lightweight Node base image
-FROM node:21-slim
-
-# Set npm warning level
-ENV NPM_CONFIG_LOGLEVEL error
-
-# Install pm2 globally
-RUN npm install -g pm2
-
-# Use the non-root built-in user `node`
-USER node
+# Use official Node.js LTS image
+FROM node:24-alpine
 
 # Create app directory
-RUN mkdir -p /home/node/app
-WORKDIR /home/node/app
+WORKDIR /usr/src/app
 
-# Copy package files first (layer caching for npm install)
-COPY --chown=node package*.json ./
+# Copy package files and install dependencies first (caching)
+COPY package*.json ./
+RUN npm install --production
 
-# Install only production dependencies
-RUN npm install --omit=dev
+# Copy built application
+COPY --chown=node:node dist ./dist
+COPY --chown=node:node package*.json ./
 
-# Copy build artifacts and pm2 config
-COPY --chown=node dist ./dist
-COPY --chown=node pm2.config.js ./pm2.config.js
+# Set environment variables (optional)
+ENV NODE_ENV=production
 
-# Bind to all interfaces & define default port
-ENV HOST=0.0.0.0 PORT=3000
+# Expose port
+EXPOSE 3000
 
-# Expose application port
-EXPOSE ${PORT}
-
-# Start app with PM2
-CMD [ "pm2-runtime", "start", "pm2.config.js" ]
+# Run the application
+CMD ["node", "dist/index.js"]
