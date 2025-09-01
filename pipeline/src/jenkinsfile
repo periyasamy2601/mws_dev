@@ -126,7 +126,7 @@ pipeline {
                         echo "✅ dist folder found. Proceeding with Docker build..."
 
                         // Use VERSION and BUILD_NUMBER from .env for tagging
-                        def IMAGE_TAG = "${VERSION}-${BUILD_NUMBER}"
+                        def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
