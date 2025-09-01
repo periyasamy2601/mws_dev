@@ -51,21 +51,20 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            agent { label 'build-node' }
-            steps {
-                dir("pipeline/src") {
-                    sh 'npm install'
-                    sh 'npm install --save-dev @loopback/build'
-                }
-            }
-        }
-
         stage('Build Application') {
             agent { label 'build-node' }
             steps {
                 dir("pipeline/src") {
-                    sh 'npm run build'
+                    script {
+                        echo "📦 Building application..."
+                        sh '''
+                            set -e
+                            echo "Node version: $(node -v)"
+                            echo "NPM version: $(npm -v)"
+                            npm install
+                            npm run build
+                        '''
+                    }
                 }
             }
         }
@@ -73,12 +72,19 @@ pipeline {
         stage('Verify Build Artifacts') {
             agent { label 'build-node' }
             steps {
-                script {
-                    def DIST_DIR = "pipeline/src/dist"
-                    if (!fileExists(DIST_DIR)) {
-                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' first."
+                dir("pipeline/src") {
+                    script {
+                        def DIST_DIR = "dist"
+                        if (!fileExists(DIST_DIR)) {
+                            echo "❌ Build failed or dist folder not found."
+                            echo "Contents of pipeline/src for debugging:"
+                            sh "ls -l"
+                            error "Build artifacts missing. Check npm build logs above."
+                        } else {
+                            echo "✅ Build artifacts found in ${DIST_DIR}"
+                            sh "ls -l ${DIST_DIR}"
+                        }
                     }
-                    echo "✅ Build artifacts found in ${DIST_DIR}"
                 }
             }
         }
@@ -145,7 +151,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                        # Stop and remove old container
+                        # Stop and remove old container if exists
                         docker rm -f ${CONTAINER_NAME} || true
 
                         # Optional: remove dangling images to save space
@@ -172,9 +178,6 @@ pipeline {
         }
         failure {
             echo "❌ Pipeline failed. Check logs."
-        }
-        always {
-            cleanWs()
         }
     }
 }
