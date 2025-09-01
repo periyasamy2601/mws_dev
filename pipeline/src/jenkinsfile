@@ -33,7 +33,8 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 script {
-                    dir("pipeline/src") {
+                    def SRC_DIR = "pipeline/src"
+                    dir("${SRC_DIR}") {
                         withSonarQubeEnv('sonar scanner') {
                             def scannerHome = tool 'sonar scanner'
                             sh """
@@ -50,20 +51,12 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install & Build') {
             agent { label 'build-node' }
             steps {
                 dir("pipeline/src") {
                     sh 'npm install'
                     sh 'npm install --save-dev @loopback/build'
-                }
-            }
-        }
-
-        stage('Build Application') {
-            agent { label 'build-node' }
-            steps {
-                dir("pipeline/src") {
                     sh 'npm run build'
                 }
             }
@@ -75,7 +68,7 @@ pipeline {
                 script {
                     def DIST_DIR = "pipeline/src/dist"
                     if (!fileExists(DIST_DIR)) {
-                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' first."
+                        error "❌ Build artifacts not found in ${DIST_DIR}."
                     } else {
                         echo "✅ Build artifacts found in ${DIST_DIR}"
                         sh "ls -l ${DIST_DIR}"
@@ -122,17 +115,15 @@ pipeline {
             steps {
                 dir('pipeline/src') {
                     script {
-                        // Verify dist exists
+                        // Auto-build if dist is missing
                         if (!fileExists("dist")) {
-                            error "❌ dist folder not found. Run 'npm run build' first."
+                            echo "❌ dist folder not found. Running build..."
+                            sh 'npm install'
+                            sh 'npm run build'
+                        } else {
+                            echo "✅ dist folder exists. Proceeding with Docker build..."
                         }
 
-                        // Verify Dockerfile exists
-                        if (!fileExists("Dockerfile")) {
-                            error "❌ Dockerfile not found in pipeline/src"
-                        }
-
-                        echo "✅ dist folder and Dockerfile found. Proceeding with Docker build..."
                         sh """
                             docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
                             docker push ${DOCKER_IMAGE}:latest
