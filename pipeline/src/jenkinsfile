@@ -66,20 +66,14 @@ pipeline {
             steps {
                 dir("pipeline/src") {
                     sh 'npm run build'
-                }
-            }
-        }
-
-        stage('Verify Build Artifacts') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def DIST_DIR = "pipeline/src/dist"
-                    if (!fileExists(DIST_DIR)) {
-                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' before Docker image."
-                    } else {
-                        echo "✅ Build artifacts found in ${DIST_DIR}"
-                        sh "ls -l ${DIST_DIR}"
+                    script {
+                        def DIST_DIR = "dist"
+                        if (!fileExists(DIST_DIR)) {
+                            error "❌ Build failed! '${DIST_DIR}' folder not found after 'npm run build'."
+                        } else {
+                            echo "✅ Build succeeded. '${DIST_DIR}' folder exists."
+                            sh "ls -l ${DIST_DIR}"
+                        }
                     }
                 }
             }
@@ -123,11 +117,7 @@ pipeline {
             steps {
                 dir('pipeline/src') {
                     script {
-                        if (!fileExists("dist")) {
-                            error "❌ dist folder not found. Run 'npm run build' first."
-                        }
-                        echo "✅ dist folder found. Proceeding with Docker build..."
-
+                        echo "✅ dist folder verified. Proceeding with Docker build..."
                         sh """
                             docker build -t ${DOCKER_IMAGE}:latest -f Dockerfile .
                             docker push ${DOCKER_IMAGE}:latest
