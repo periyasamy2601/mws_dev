@@ -24,7 +24,7 @@ pipeline {
         stage('Checkout') {
             agent { label 'build-node' }
             steps {
-                deleteDir() // built-in workspace cleanup
+                deleteDir()
                 git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git'
             }
         }
@@ -34,15 +34,17 @@ pipeline {
             steps {
                 dir("pipeline/src") {
                     withSonarQubeEnv('sonar scanner') {
-                        def scannerHome = tool 'sonar scanner'
-                        sh """
-                            ${scannerHome}/bin/sonar-scanner \
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=${SONAR_HOST} \
-                            -Dsonar.scanner.workDirectory=/tmp/.sonar
-                        """
+                        script {
+                            def scannerHome = tool name: 'sonar-scanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+                            sh """
+                                ${scannerHome}/bin/sonar-scanner \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONAR_HOST} \
+                                -Dsonar.scanner.workDirectory=/tmp/.sonar
+                            """
+                        }
                     }
                 }
             }
@@ -63,7 +65,6 @@ pipeline {
             steps {
                 dir("pipeline/src") {
                     sh 'npm run build'
-                    sh 'ls -l' // debug: check if dist folder is created
                 }
             }
         }
@@ -71,13 +72,13 @@ pipeline {
         stage('Verify Build Artifacts') {
             agent { label 'build-node' }
             steps {
-                dir("pipeline/src") {
-                    script {
-                        if (!fileExists("dist")) {
-                            error "❌ Build artifacts not found in pipeline/src/dist. Check build step."
-                        }
-                        echo "✅ Build artifacts found:"
-                        sh "ls -l dist"
+                script {
+                    def DIST_DIR = "pipeline/src/dist"
+                    if (!fileExists(DIST_DIR)) {
+                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' before Docker image."
+                    } else {
+                        echo "✅ Build artifacts found in ${DIST_DIR}"
+                        sh "ls -l ${DIST_DIR}"
                     }
                 }
             }
@@ -87,7 +88,7 @@ pipeline {
             agent { label 'build-node' }
             when {
                 allOf {
-                    expression { params.MIGRATE }
+                    expression { params.MIGRATE == true }
                     expression { fileExists('pipeline/src/dist/migrate.js') }
                 }
             }
@@ -121,7 +122,11 @@ pipeline {
             steps {
                 dir('pipeline/src') {
                     script {
-                        echo "Building Docker image..."
+                        if (!fileExists("dist")) {
+                            error " dist folder not found. Run 'npm run build' first."
+                        }
+                        echo " dist folder found. Proceeding with Docker build..."
+
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
                                                           passwordVariable: 'DOCKER_PASS')]) {
@@ -164,10 +169,11 @@ pipeline {
             echo "✅ Pipeline finished successfully."
         }
         failure {
-            echo "❌ Pipeline failed. Check logs."
+            echo "❌ Pipeline failed."
         }
         always {
-            deleteDir() // replaces cleanWs
+            echo "Cleaning workspace..."
+            deleteDir()
         }
     }
 }
