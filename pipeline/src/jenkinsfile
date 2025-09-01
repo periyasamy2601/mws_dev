@@ -32,7 +32,7 @@ pipeline {
                 script {
                     def SRC_DIR = "pipeline/src"
                     dir("${SRC_DIR}") {
-                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
                             withEnv(["SONAR_USER_HOME=${env.WORKSPACE}/.sonar"]) {
                                 def scannerHome = tool 'sonar scanner'
                                 sh """
