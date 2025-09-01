@@ -3,26 +3,23 @@ pipeline {
 
     parameters {
         booleanParam(name: 'MIGRATE', defaultValue: true, description: 'Run database migrations')
-        string(name: 'VERSION', defaultValue: '1.0.0', description: 'App version for Docker tag')
-    }
-
-    environment {
-        DOCKER_IMAGE       = "mwsdev2025/mws_avk_api"
-        SONAR_HOST         = "http://192.168.2.20:9000"
-        SONAR_PROJECT_KEY  = "mws_avk_api"
-        SONAR_PROJECT_NAME = "mws_avk_api"
-        DB_HOST            = "192.168.2.20"
-        DB_PORT            = "5432"
-        DB_NAME            = "mws_avk_api"
-        DB_USER            = "mws_avk_api"
-        DB_PASS            = "qwert"
-        NPM_TOKEN          = credentials('github_npm_token')
-        BACKUP_FILE        = "/tmp/${DB_NAME}_backup.sql"
-        BUILD_NUMBER       = "${env.BUILD_NUMBER}"   // Jenkins build number
-        DOCKER_TAG         = "${params.VERSION}-${env.BUILD_NUMBER}"
     }
 
     stages {
+
+        stage('Load Environment') {
+            agent { label 'build-node' }
+            steps {
+                script {
+                    // Load environment variables from .env
+                    def envProps = readProperties file: 'pipeline/src/.env'
+                    envProps.each { key, value ->
+                        env["${key}"] = "${value}"
+                    }
+                    echo "✅ Environment variables loaded from .env"
+                }
+            }
+        }
 
         stage('Checkout') {
             agent { label 'build-node' }
@@ -35,20 +32,17 @@ pipeline {
         stage('SonarQube Scan') {
             agent { label 'build-node' }
             steps {
-                script {
-                    def SRC_DIR = "pipeline/src"
-                    dir("${SRC_DIR}") {
-                        withSonarQubeEnv('sonar scanner') {
-                            def scannerHome = tool 'sonar scanner'
-                            sh """
-                                ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONAR_HOST} \
-                                -Dsonar.scanner.workDirectory=/tmp/.sonar
-                            """
-                        }
+                dir("pipeline/src") {
+                    withSonarQubeEnv('sonar scanner') {
+                        def scannerHome = tool 'sonar scanner'
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=${SONAR_HOST} \
+                            -Dsonar.scanner.workDirectory=/tmp/.sonar
+                        """
                     }
                 }
             }
@@ -127,20 +121,20 @@ pipeline {
                 dir('pipeline/src') {
                     script {
                         if (!fileExists("dist")) {
-                            error "dist folder not found. Run 'npm run build' first."
+                            error " dist folder not found. Run 'npm run build' first."
                         }
+                        echo "✅ dist folder found. Proceeding with Docker build..."
 
-                        echo "Building Docker image with tag: ${DOCKER_TAG}"
+                        // Use VERSION and BUILD_NUMBER from .env for tagging
+                        def IMAGE_TAG = "${VERSION}-${BUILD_NUMBER}"
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
                                                           passwordVariable: 'DOCKER_PASS')]) {
                             sh """
                                 docker login -u $DOCKER_USER -p $DOCKER_PASS
-                                docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f Dockerfile .
-                                docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                                docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
-                                docker push ${DOCKER_IMAGE}:latest
+                                docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -f Dockerfile .
+                                docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
                             """
                         }
                     }
@@ -152,6 +146,7 @@ pipeline {
             agent { label 'docker-node' }
             steps {
                 script {
+                    def IMAGE_TAG = "${VERSION}-${BUILD_NUMBER}"
                     sh """
                         echo "Stopping old container if exists..."
                         docker rm -f mws_avk_api_dev || true
@@ -164,7 +159,7 @@ pipeline {
                             -e DB_NAME=${DB_NAME} \\
                             -e DB_USER=${DB_USER} \\
                             -e DB_PASS=${DB_PASS} \\
-                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+                            ${DOCKER_IMAGE}:${IMAGE_TAG}
                     """
                 }
             }
@@ -173,13 +168,13 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline finished successfully."
+            echo "✅ Pipeline finished successfully."
         }
         failure {
-            echo "Pipeline failed."
+            echo "❌ Pipeline failed."
         }
         always {
-            node('build-node') {  // ✅ Specify node context for always
+            node('build-node') {
                 cleanWs()
             }
         }
