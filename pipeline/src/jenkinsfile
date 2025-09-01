@@ -159,7 +159,7 @@ pipeline {
                 }
             }
         }
-    }
+
 
     post {
         success {
@@ -169,7 +169,7 @@ pipeline {
             echo "Pipeline failed."
         }
         always {
-            node { // ✅ Fixes agent none error
+            node('buid-node') { // ✅ Fixes agent none error
                 cleanWs()
             }
         }
