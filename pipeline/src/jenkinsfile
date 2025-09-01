@@ -1,4 +1,3 @@
-
 pipeline {
     agent none
 
@@ -42,7 +41,7 @@ pipeline {
                                     -Dsonar.projectName=${SONAR_PROJECT_NAME} \
                                     -Dsonar.sources=. \
                                     -Dsonar.host.url=${SONAR_HOST} \
-                                    -Dsonar.login=$SONAR_TOKEN \
+                                    -Dsonar.login=${SONAR_TOKEN} \
                                     -Dsonar.scanner.workDirectory=${env.WORKSPACE}/.sonar
                                 """
                             }
@@ -128,16 +127,14 @@ pipeline {
                             error "❌ dist folder not found. Run 'npm run build' first."
                         }
 
-                        def buildNumber = env.BUILD_NUMBER ?: "1"
-                        def IMAGE_TAG = "${VERSION}.${buildNumber}"
+                        // Resolve Jenkins build number, default to 1
+                        def IMAGE_TAG = "${VERSION}.${env.BUILD_NUMBER ?: '1'}"
 
-                        withCredentials([usernamePassword(
-                            credentialsId: 'docker-hub-creds',
-                            usernameVariable: 'DOCKER_USER',
-                            passwordVariable: 'DOCKER_PASS'
-                        )]) {
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds',
+                                                          usernameVariable: 'DOCKER_USER',
+                                                          passwordVariable: 'DOCKER_PASS')]) {
                             sh """
-                                echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                                 docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -f Dockerfile .
                                 docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
                             """
@@ -151,8 +148,7 @@ pipeline {
             agent { label 'docker-node' }
             steps {
                 script {
-                    def buildNumber = env.BUILD_NUMBER ?: "1"
-                    def IMAGE_TAG = "${VERSION}.${buildNumber}"
+                    def IMAGE_TAG = "${VERSION}.${env.BUILD_NUMBER ?: '1'}"
                     sh """
                         docker rm -f mws_avk_api_dev || true
                         docker run -d --name mws_avk_api_dev \
