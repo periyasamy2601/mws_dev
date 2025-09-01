@@ -11,6 +11,7 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 script {
+                    // Load .env variables
                     def envProps = readProperties file: 'pipeline/src/.env'
                     envProps.each { key, value ->
                         env["${key}"] = "${value}"
@@ -31,16 +32,19 @@ pipeline {
         stage('SonarQube Scan') {
             agent { label 'build-node' }
             steps {
-                dir("pipeline/src") {
-                    sh """
-                        sonar-scanner \
-                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                        -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=${SONAR_HOST} \
-                        -Dsonar.login=${SONAR_TOKEN} \
-                        -Dsonar.scanner.workDirectory=/tmp/.sonar
-                    """
+                dir('pipeline/src') {
+                    // Use Jenkins credential for Sonar token
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                            sonar-scanner \
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.projectName=${SONAR_PROJECT_NAME} \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=${SONAR_HOST} \
+                            -Dsonar.login=${SONAR_TOKEN} \
+                            -Dsonar.scanner.workDirectory=/tmp/.sonar
+                        """
+                    }
                 }
             }
         }
@@ -48,7 +52,7 @@ pipeline {
         stage('Install Dependencies') {
             agent { label 'build-node' }
             steps {
-                dir("pipeline/src") {
+                dir('pipeline/src') {
                     sh 'npm install'
                     sh 'npm install --save-dev @loopback/build'
                 }
@@ -58,7 +62,7 @@ pipeline {
         stage('Build Application') {
             agent { label 'build-node' }
             steps {
-                dir("pipeline/src") {
+                dir('pipeline/src') {
                     sh 'npm run build'
                 }
             }
@@ -70,7 +74,7 @@ pipeline {
                 script {
                     def DIST_DIR = "pipeline/src/dist"
                     if (!fileExists(DIST_DIR)) {
-                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' before Docker image."
+                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' first."
                     } else {
                         echo "✅ Build artifacts found in ${DIST_DIR}"
                         sh "ls -l ${DIST_DIR}"
@@ -88,7 +92,7 @@ pipeline {
                 }
             }
             steps {
-                dir("pipeline/src") {
+                dir('pipeline/src') {
                     script {
                         try {
                             echo "Backing up database..."
@@ -117,14 +121,16 @@ pipeline {
             steps {
                 dir('pipeline/src') {
                     script {
-                        if (!fileExists("dist")) {
-                            error " dist folder not found. Run 'npm run build' first."
+                        if (!fileExists('dist')) {
+                            error "❌ dist folder not found. Run 'npm run build' first."
                         }
+                        echo "✅ dist folder found. Proceeding with Docker build..."
 
                         def IMAGE_TAG = "${VERSION}.${BUILD_NUMBER}"
 
-                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds',
-                                                          usernameVariable: 'DOCKER_USER',
+                        // Docker login using Jenkins credentials
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
+                                                          usernameVariable: 'DOCKER_USER', 
                                                           passwordVariable: 'DOCKER_PASS')]) {
                             sh """
                                 docker login -u $DOCKER_USER -p $DOCKER_PASS
