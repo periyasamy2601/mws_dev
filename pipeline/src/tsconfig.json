@@ -2,11 +2,11 @@
   "$schema": "http://json.schemastore.org/tsconfig",
   "extends": "@loopback/build/config/tsconfig.common.json",
   "compilerOptions": {
-    "outDir": "./dist",  
-    "rootDir": "./",     
+    "outDir": "./dist",
+    "rootDir": "./src",
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.d.ts"]  
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.d.ts", "test", "__tests__"]
 }
