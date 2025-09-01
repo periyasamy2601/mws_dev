@@ -37,7 +37,7 @@ pipeline {
                     dir("${SRC_DIR}") {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                             sh """
-                                export SONAR_USER_HOME=${WORKSPACE}/.sonar
+                                export sonar scanner=${WORKSPACE}/.sonar
                                 sonar-scanner \
                                     -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                                     -Dsonar.projectName=${SONAR_PROJECT_NAME} \
