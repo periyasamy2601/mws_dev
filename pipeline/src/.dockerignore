@@ -1,0 +1,18 @@
+# Ignore dependencies
+node_modules
+npm-debug.log
+
+# Ignore local build caches
+*.tsbuildinfo
+
+# Ignore local environment files
+.env
+.vscode/
+.idea/
+
+# Do NOT ignore dist (needed for Docker)
+# /dist ❌ removed
+
+# Ignore tests
+__tests__/
+*.spec.ts
