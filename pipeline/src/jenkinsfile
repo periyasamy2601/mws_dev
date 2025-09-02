@@ -127,7 +127,8 @@ pipeline {
                             error "❌ dist folder not found. Run 'npm run build' first."
                         }
 
-                        def IMAGE_TAG = "${env.VERSION}.${env.BUILD_NUMBER}"
+                        def IMAGE_TAG = "${env.VERSION}.${env.BUILD_NUMBER ?: '1'}"
+
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
