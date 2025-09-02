@@ -7,8 +7,8 @@ pipeline {
         SONARQUBE_SERVER = "http://192.168.2.20:9000"
         SONARQUBE_TOKEN = credentials('sonarqube-token')
         FIREBASE_TOKEN = credentials('firebase-token')
-        ANDROID_APP_ID = "<YOUR_ANDROID_APP_ID>"   // Replace with your Firebase Android app ID
-        IOS_APP_ID = "<YOUR_IOS_APP_ID>"           // Replace with your Firebase iOS app ID
+        ANDROID_APP_ID = "1:796222979324:android:9f889d354edb178c1aeb79"
+        IOS_APP_ID = "1:796222979324:ios:8f12cbf67ef2727a1aeb79"
     }
 
     stages {
@@ -55,22 +55,21 @@ pipeline {
         stage('Set Version & Build Numbers') {
             steps {
                 script {
-                    // Generate a build number based on Jenkins BUILD_NUMBER or timestamp
                     env.BUILD_NUMBER_STR = "${env.BUILD_NUMBER ?: new Date().format('yyyyMMddHHmmss')}"
                     echo "Using build number: ${env.BUILD_NUMBER_STR}"
 
-                    // Update Flutter version
+                    // Flutter version
                     sh """
                     sed -i "s/^version:.*/version: 1.0.${BUILD_NUMBER_STR}+${BUILD_NUMBER_STR}/" pubspec.yaml
                     """
 
-                    // Update Android build numbers
+                    // Android build numbers
                     sh """
                     sed -i "s/versionCode .*/versionCode ${BUILD_NUMBER_STR}/" android/app/build.gradle
                     sed -i "s/versionName \".*\"/versionName \"1.0.${BUILD_NUMBER_STR}\"/" android/app/build.gradle
                     """
 
-                    // Update iOS build numbers
+                    // iOS build numbers
                     sh """
                     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER_STR}" ios/Runner/Info.plist
                     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.${BUILD_NUMBER_STR}" ios/Runner/Info.plist
@@ -97,8 +96,19 @@ pipeline {
             }
         }
 
-        stage('Deploy Dev (Firebase App Distribution)') {
+        stage('Deploy Dev') {
             parallel {
+                stage('Web Deploy (Firebase Hosting)') {
+                    steps {
+                        dir("${WORKSPACE}") {
+                            echo 'Deploying Web build to Firebase Hosting...'
+                            sh """
+                            firebase deploy --only hosting --token $FIREBASE_TOKEN
+                            """
+                        }
+                    }
+                }
+
                 stage('Android Deploy') {
                     steps {
                         dir("${WORKSPACE}") {
@@ -134,7 +144,7 @@ pipeline {
 
     post {
         success {
-            echo 'Dev frontend pipeline completed successfully with versioning and Firebase App Distribution!'
+            echo 'Dev frontend pipeline completed successfully with Web + Android + iOS deployment!'
         }
         failure {
             echo 'Pipeline failed! Check logs for details.'
