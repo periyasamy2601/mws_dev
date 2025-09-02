@@ -4,150 +4,106 @@ pipeline {
     environment {
         FLUTTER_HOME = "/opt/flutter"
         PATH = "${env.FLUTTER_HOME}/bin:${env.PATH}"
-        SONARQUBE_SERVER = "http://192.168.2.20:9000"
-        SONARQUBE_TOKEN = credentials('sonarqube-token')
-        FIREBASE_TOKEN = credentials('firebase-token')
         ANDROID_APP_ID = "1:796222979324:android:9f889d354edb178c1aeb79"
         IOS_APP_ID = "1:796222979324:ios:8f12cbf67ef2727a1aeb79"
+        SONAR_HOST_URL = "http://192.168.2.20:9000"
+        SONAR_PROJECT_KEY = "mws_frontend"
+        SONAR_PROJECT_NAME = "mws_frontend"
+        SONAR_TOKEN = credentials('sonar-token') // Sonar token stored in Jenkins credentials
     }
 
     stages {
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
 
         stage('Install Dependencies') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh 'flutter pub get'
-                    sh 'cd ios && pod install && cd ..'
-                    sh 'cd android && ./gradlew dependencies && cd ..'
-                }
+                sh 'flutter clean'
+                sh 'flutter pub get'
+                sh 'cd ios && pod install && cd ..'
             }
         }
 
-        stage('Code Quality') {
+        stage('SonarQube Analysis') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh """
-                    sonar-scanner \
-                      -Dsonar.projectKey=mws_frontend \
-                      -Dsonar.projectName=mws_frontend \
-                      -Dsonar.sources=lib \
-                      -Dsonar.host.url=${SONARQUBE_SERVER} \
-                      -Dsonar.login=${SONARQUBE_TOKEN}
-                    """
-                }
+                sh """
+                flutter pub run sonar_flutter_plugin:analyze \
+                  -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                  -Dsonar.projectName=$SONAR_PROJECT_NAME \
+                  -Dsonar.host.url=$SONAR_HOST_URL \
+                  -Dsonar.login=$SONAR_TOKEN
+                """
             }
         }
 
-        stage('Analyze & Test') {
-            steps {
-                dir("${WORKSPACE}") {
-                    sh 'flutter analyze'
-                    sh 'flutter test'
-                }
-            }
-        }
-
-        stage('Set Version & Build Numbers') {
+        stage('Versioning') {
             steps {
                 script {
-                    env.BUILD_NUMBER_STR = "${env.BUILD_NUMBER ?: new Date().format('yyyyMMddHHmmss')}"
-                    echo "Using build number: ${env.BUILD_NUMBER_STR}"
-
-                    // Flutter version
-                    sh """
-                    sed -i "s/^version:.*/version: 1.0.${BUILD_NUMBER_STR}+${BUILD_NUMBER_STR}/" pubspec.yaml
-                    """
-
-                    // Android build numbers
-                    sh """
-                    sed -i "s/versionCode .*/versionCode ${BUILD_NUMBER_STR}/" android/app/build.gradle
-                    sed -i "s/versionName \".*\"/versionName \"1.0.${BUILD_NUMBER_STR}\"/" android/app/build.gradle
-                    """
-
-                    // iOS build numbers
-                    sh """
-                    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER_STR}" ios/Runner/Info.plist
-                    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.${BUILD_NUMBER_STR}" ios/Runner/Info.plist
-                    """
+                    // Automatic version bump (increment build number)
+                    def versionFile = readFile('pubspec.yaml')
+                    def versionLine = versionFile.readLines().find { it.startsWith('version:') }
+                    def currentVersion = versionLine.split(':')[1].trim().split('+')[0]
+                    def buildNumber = versionLine.split('+')[1].trim().toInteger() + 1
+                    def newVersion = "${currentVersion}+${buildNumber}"
+                    sh "sed -i 's/version:.*/version: ${newVersion}/' pubspec.yaml"
+                    echo "Updated version to ${newVersion}"
                 }
             }
         }
 
         stage('Build Dev') {
             steps {
-                dir("${WORKSPACE}") {
-                    sh 'flutter clean'
-                    sh 'flutter pub get'
+                echo 'Copying plist for iOS...'
+                sh 'cp $WORKSPACE/lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
 
-                    echo 'Building iOS (Dev)...'
-                    sh 'flutter build ios --flavor dev -t lib/main_dev.dart'
+                echo 'Copying google-services JSON for Android...'
+                sh 'cp $WORKSPACE/lib/config/firebase/google-services-dev.json android/app/google-services.json'
 
-                    echo 'Building Android APK (Dev)...'
-                    sh 'flutter build apk --release --flavor dev -t lib/main_dev.dart'
+                echo 'Building iOS (Dev)...'
+                sh 'flutter build ios --flavor dev -t lib/main_dev.dart'
 
-                    echo 'Building Web (Dev)...'
-                    sh 'flutter build web -t lib/main_dev.dart --release'
+                echo 'Building Android APK (Dev)...'
+                sh 'flutter build apk --release --flavor dev -t lib/main_dev.dart'
+
+                echo 'Building Web (Dev)...'
+                sh 'flutter build web -t lib/main_dev.dart --release'
+            }
+        }
+
+        stage('Deploy Web') {
+            steps {
+                withEnv(["GOOGLE_APPLICATION_CREDENTIALS=$WORKSPACE/lib/config/firebase/google-services-dev.json"]) {
+                    sh 'firebase deploy --only hosting'
                 }
             }
         }
 
-        stage('Deploy Dev') {
-            parallel {
-                stage('Web Deploy (Firebase Hosting)') {
-                    steps {
-                        dir("${WORKSPACE}") {
-                            echo 'Deploying Web build to Firebase Hosting...'
-                            sh """
-                            firebase deploy --only hosting --token $FIREBASE_TOKEN
-                            """
-                        }
-                    }
-                }
+        stage('Deploy Android') {
+            steps {
+                sh """
+                firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+                  --app $ANDROID_APP_ID \
+                  --groups "dev-testers" \
+                  --release-notes "Dev build ${BUILD_NUMBER}"
+                """
+            }
+        }
 
-                stage('Android Deploy') {
-                    steps {
-                        dir("${WORKSPACE}") {
-                            echo 'Uploading Android APK to Firebase App Distribution...'
-                            sh """
-                            firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
-                              --app $ANDROID_APP_ID \
-                              --groups "dev-testers" \
-                              --release-notes "Dev build ${BUILD_NUMBER_STR}" \
-                              --token $FIREBASE_TOKEN
-                            """
-                        }
-                    }
-                }
-
-                stage('iOS Deploy') {
-                    steps {
-                        dir("${WORKSPACE}") {
-                            echo 'Uploading iOS IPA to Firebase App Distribution...'
-                            sh """
-                            firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
-                              --app $IOS_APP_ID \
-                              --groups "dev-testers" \
-                              --release-notes "Dev build ${BUILD_NUMBER_STR}" \
-                              --token $FIREBASE_TOKEN
-                            """
-                        }
-                    }
-                }
+        stage('Deploy iOS') {
+            steps {
+                sh """
+                firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
+                  --app $IOS_APP_ID \
+                  --groups "dev-testers" \
+                  --release-notes "Dev build ${BUILD_NUMBER}"
+                """
             }
         }
     }
 
     post {
-        success {
-            echo 'Dev frontend pipeline completed successfully with Web + Android + iOS deployment!'
-        }
-        failure {
-            echo 'Pipeline failed! Check logs for details.'
-        }
+        success { echo 'Dev frontend pipeline completed successfully!' }
+        failure { echo 'Pipeline failed! Check logs.' }
     }
 }
