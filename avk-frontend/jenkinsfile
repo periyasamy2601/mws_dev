@@ -9,12 +9,14 @@ pipeline {
         SONAR_HOST_URL = "http://192.168.2.20:9000"
         SONAR_PROJECT_KEY = "mws_frontend"
         SONAR_PROJECT_NAME = "mws_frontend"
-        SONAR_TOKEN = credentials('sonarqube_token') // Sonar token stored in Jenkins credentials
     }
 
     stages {
+
         stage('Checkout') {
-            steps { checkout scm }
+            steps { 
+                checkout scm 
+            }
         }
 
         stage('Install Dependencies') {
@@ -22,8 +24,9 @@ pipeline {
                 dir('avk-frontend') {
                     sh 'flutter clean'
                     sh 'flutter pub get'
+
                     dir('ios') {
-                        sh 'pod install'
+                        sh 'pod install || true'  // Avoid failing if iOS not configured
                     }
                 }
             }
@@ -32,13 +35,16 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 dir('avk-frontend') {
-                    sh """
-                    flutter pub run sonar_flutter_plugin:analyze \
-                      -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                      -Dsonar.projectName=$SONAR_PROJECT_NAME \
-                      -Dsonar.host.url=$SONAR_HOST_URL \
-                      -Dsonar.login=$SONAR_TOKEN
-                    """
+                    withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
+                        sh '''
+                        flutter pub get
+                        flutter pub run sonar_flutter_plugin:analyze \
+                          -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                          -Dsonar.projectName=$SONAR_PROJECT_NAME \
+                          -Dsonar.host.url=$SONAR_HOST_URL \
+                          -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
                 }
             }
         }
@@ -49,8 +55,8 @@ pipeline {
                     script {
                         def versionFile = readFile('pubspec.yaml')
                         def versionLine = versionFile.readLines().find { it.startsWith('version:') }
-                        def currentVersion = versionLine.split(':')[1].trim().split('+')[0]
-                        def buildNumber = versionLine.split('+')[1].trim().toInteger() + 1
+                        def currentVersion = versionLine.split(':')[1].trim().split('\\+')[0]
+                        def buildNumber = versionLine.split('\\+')[1].trim().toInteger() + 1
                         def newVersion = "${currentVersion}+${buildNumber}"
                         sh "sed -i 's/version:.*/version: ${newVersion}/' pubspec.yaml"
                         echo "Updated version to ${newVersion}"
@@ -68,21 +74,22 @@ pipeline {
                     echo 'Copying google-services JSON for Android...'
                     sh 'cp lib/config/firebase/google-services-dev.json android/app/google-services.json'
 
-                    echo 'Building iOS (Dev)...'
-                    sh 'flutter build ios --flavor dev -t lib/main_dev.dart'
-
                     echo 'Building Android APK (Dev)...'
-                    sh 'flutter build apk --release --flavor dev -t lib/main_dev.dart'
+                    sh 'flutter build apk --release -t lib/main_dev.dart'
 
                     echo 'Building Web (Dev)...'
-                    sh 'flutter build web -t lib/main_dev.dart --release'
+                    sh 'flutter build web --release -t lib/main_dev.dart'
+
+                    // Optional iOS build (requires macOS Jenkins agent)
+                    // echo 'Building iOS (Dev)...'
+                    // sh 'flutter build ios --release -t lib/main_dev.dart'
                 }
             }
         }
 
         stage('Deploy Web') {
             steps {
-                withEnv(["GOOGLE_APPLICATION_CREDENTIALS=$WORKSPACE/avk-frontend/lib/config/firebase/google-services-dev.json"]) {
+                withCredentials([file(credentialsId: 'firebase_dev_json', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh 'firebase deploy --only hosting'
                 }
             }
@@ -91,12 +98,15 @@ pipeline {
         stage('Deploy Android') {
             steps {
                 dir('avk-frontend') {
-                    sh """
-                    firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
-                      --app $ANDROID_APP_ID \
-                      --groups "dev-testers" \
-                      --release-notes "Dev build ${BUILD_NUMBER}"
-                    """
+                    withCredentials([string(credentialsId: 'firebase_token', variable: 'FIREBASE_TOKEN')]) {
+                        sh """
+                        firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+                          --app $ANDROID_APP_ID \
+                          --groups "dev-testers" \
+                          --release-notes "Dev build ${BUILD_NUMBER}" \
+                          --token $FIREBASE_TOKEN
+                        """
+                    }
                 }
             }
         }
@@ -104,12 +114,15 @@ pipeline {
         stage('Deploy iOS') {
             steps {
                 dir('avk-frontend') {
-                    sh """
-                    firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
-                      --app $IOS_APP_ID \
-                      --groups "dev-testers" \
-                      --release-notes "Dev build ${BUILD_NUMBER}"
-                    """
+                    withCredentials([string(credentialsId: 'firebase_token', variable: 'FIREBASE_TOKEN')]) {
+                        sh """
+                        firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
+                          --app $IOS_APP_ID \
+                          --groups "dev-testers" \
+                          --release-notes "Dev build ${BUILD_NUMBER}" \
+                          --token $FIREBASE_TOKEN
+                        """
+                    }
                 }
             }
         }
