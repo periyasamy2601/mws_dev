@@ -1,1 +1,97 @@
+pipeline {
+    agent any
+
+    environment {
+        FLUTTER_HOME = "/opt/flutter"                // Flutter SDK path on Jenkins node
+        PATH = "${env.FLUTTER_HOME}/bin:${env.PATH}"
+        SONARQUBE_SERVER = "http://192.168.2.20:9000"
+        SONARQUBE_TOKEN = credentials('sonarqube-token')
+        FIREBASE_TOKEN = credentials('firebase-token')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir("${WORKSPACE}") {                    // Ensure commands run from repo root
+                    sh 'flutter pub get'
+                    sh 'cd ios && pod install && cd ..'
+                    sh 'cd android && ./gradlew dependencies && cd ..'
+                }
+            }
+        }
+
+        stage('Code Quality') {
+            steps {
+                dir("${WORKSPACE}") {
+                    sh """
+                    sonar-scanner \
+                      -Dsonar.projectKey=mws_frontend \
+                      -Dsonar.projectName=mws_frontend \
+                      -Dsonar.sources=lib \
+                      -Dsonar.host.url=${SONARQUBE_SERVER} \
+                      -Dsonar.login=${SONARQUBE_TOKEN}
+                    """
+                }
+            }
+        }
+
+        stage('Analyze & Test') {
+            steps {
+                dir("${WORKSPACE}") {
+                    sh 'flutter analyze'
+                    sh 'flutter test'
+                }
+            }
+        }
+
+        stage('Build Dev') {
+            steps {
+                dir("${WORKSPACE}") {
+                    echo 'Cleaning and fetching dependencies...'
+                    sh 'flutter clean'
+                    sh 'flutter pub get'
+
+                    echo 'Building iOS (Dev)...'
+                    sh 'flutter build ios --flavor dev -t lib/main_dev.dart'
+
+                    echo 'Building Android APK (Dev)...'
+                    sh 'flutter build apk --release --flavor dev -t lib/main_dev.dart'
+
+                    echo 'Building Web (Dev)...'
+                    sh 'flutter build web -t lib/main_dev.dart --release'
+                }
+            }
+        }
+
+        stage('Deploy Dev') {
+            parallel {
+                stage('Web Deploy') {
+                    steps {
+                        dir("${WORKSPACE}") {
+                            sh 'firebase deploy --only hosting --token $FIREBASE_TOKEN'
+                        }
+                    }
+                }
+                stage('Mobile Deploy') {
+                    steps {
+                        dir("${WORKSPACE}") {
+                            sh './firebaseScript.sh'   // Upload Android & iOS builds to Firebase App Distribution
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo 'Dev frontend pipeline completed successfully!' }
+        failure { echo 'Pipeline failed! Check logs for details.' }
+    }
+}
 
