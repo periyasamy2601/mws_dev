@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         FLUTTER_HOME = "/opt/flutter"
-        PATH = "${env.FLUTTER_HOME}/bin:${env.PATH}"
+        PATH = "${env.FLUTTER_HOME}/bin:/usr/local/bin:${env.PATH}" // Added /usr/local/bin for pod
         ANDROID_APP_ID = "1:796222979324:android:9f889d354edb178c1aeb79"
         IOS_APP_ID = "1:796222979324:ios:8f12cbf67ef2727a1aeb79"
         SONAR_HOST_URL = "http://192.168.2.20:9000"
@@ -22,7 +22,9 @@ pipeline {
                 dir('avk-frontend') {
                     sh 'flutter clean'
                     sh 'flutter pub get'
-                    sh 'cd ios && pod install && cd ..'
+                    dir('ios') {
+                        sh 'pod install'
+                    }
                 }
             }
         }
@@ -80,10 +82,8 @@ pipeline {
 
         stage('Deploy Web') {
             steps {
-                dir('avk-frontend') {
-                    withEnv(["GOOGLE_APPLICATION_CREDENTIALS=lib/config/firebase/google-services-dev.json"]) {
-                        sh 'firebase deploy --only hosting'
-                    }
+                withEnv(["GOOGLE_APPLICATION_CREDENTIALS=$WORKSPACE/avk-frontend/lib/config/firebase/google-services-dev.json"]) {
+                    sh 'firebase deploy --only hosting'
                 }
             }
         }
