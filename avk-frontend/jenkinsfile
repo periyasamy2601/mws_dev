@@ -9,7 +9,7 @@ pipeline {
         SONAR_HOST_URL = "http://192.168.2.20:9000"
         SONAR_PROJECT_KEY = "mws_frontend"
         SONAR_PROJECT_NAME = "mws_frontend"
-        SONAR_TOKEN = credentials('sonar_token') // Sonar token stored in Jenkins credentials
+        SONAR_TOKEN = credentials('sonarqube_token') // Sonar token stored in Jenkins credentials
     }
 
     stages {
