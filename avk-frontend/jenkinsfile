@@ -9,7 +9,7 @@ pipeline {
         SONAR_HOST_URL = "http://192.168.2.20:9000"
         SONAR_PROJECT_KEY = "mws_frontend"
         SONAR_PROJECT_NAME = "mws_frontend"
-        SONAR_TOKEN = credentials('sonarqube_token') // Sonar token stored in Jenkins credentials
+        SONAR_TOKEN = credentials('sonar-token') // Sonar token stored in Jenkins credentials
     }
 
     stages {
@@ -19,85 +19,98 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'flutter clean'
-                sh 'flutter pub get'
-                sh 'cd ios && pod install && cd ..'
+                dir('avk-frontend') {
+                    sh 'flutter clean'
+                    sh 'flutter pub get'
+                    sh 'cd ios && pod install && cd ..'
+                }
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                sh """
-                flutter pub run sonar_flutter_plugin:analyze \
-                  -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                  -Dsonar.projectName=$SONAR_PROJECT_NAME \
-                  -Dsonar.host.url=$SONAR_HOST_URL \
-                  -Dsonar.login=$SONAR_TOKEN
-                """
+                dir('avk-frontend') {
+                    sh """
+                    flutter pub run sonar_flutter_plugin:analyze \
+                      -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                      -Dsonar.projectName=$SONAR_PROJECT_NAME \
+                      -Dsonar.host.url=$SONAR_HOST_URL \
+                      -Dsonar.login=$SONAR_TOKEN
+                    """
+                }
             }
         }
 
         stage('Versioning') {
             steps {
-                script {
-                    // Automatic version bump (increment build number)
-                    def versionFile = readFile('pubspec.yaml')
-                    def versionLine = versionFile.readLines().find { it.startsWith('version:') }
-                    def currentVersion = versionLine.split(':')[1].trim().split('+')[0]
-                    def buildNumber = versionLine.split('+')[1].trim().toInteger() + 1
-                    def newVersion = "${currentVersion}+${buildNumber}"
-                    sh "sed -i 's/version:.*/version: ${newVersion}/' pubspec.yaml"
-                    echo "Updated version to ${newVersion}"
+                dir('avk-frontend') {
+                    script {
+                        def versionFile = readFile('pubspec.yaml')
+                        def versionLine = versionFile.readLines().find { it.startsWith('version:') }
+                        def currentVersion = versionLine.split(':')[1].trim().split('+')[0]
+                        def buildNumber = versionLine.split('+')[1].trim().toInteger() + 1
+                        def newVersion = "${currentVersion}+${buildNumber}"
+                        sh "sed -i 's/version:.*/version: ${newVersion}/' pubspec.yaml"
+                        echo "Updated version to ${newVersion}"
+                    }
                 }
             }
         }
 
         stage('Build Dev') {
             steps {
-                echo 'Copying plist for iOS...'
-                sh 'cp $WORKSPACE/lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
+                dir('avk-frontend') {
+                    echo 'Copying plist for iOS...'
+                    sh 'cp lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
 
-                echo 'Copying google-services JSON for Android...'
-                sh 'cp $WORKSPACE/lib/config/firebase/google-services-dev.json android/app/google-services.json'
+                    echo 'Copying google-services JSON for Android...'
+                    sh 'cp lib/config/firebase/google-services-dev.json android/app/google-services.json'
 
-                echo 'Building iOS (Dev)...'
-                sh 'flutter build ios --flavor dev -t lib/main_dev.dart'
+                    echo 'Building iOS (Dev)...'
+                    sh 'flutter build ios --flavor dev -t lib/main_dev.dart'
 
-                echo 'Building Android APK (Dev)...'
-                sh 'flutter build apk --release --flavor dev -t lib/main_dev.dart'
+                    echo 'Building Android APK (Dev)...'
+                    sh 'flutter build apk --release --flavor dev -t lib/main_dev.dart'
 
-                echo 'Building Web (Dev)...'
-                sh 'flutter build web -t lib/main_dev.dart --release'
+                    echo 'Building Web (Dev)...'
+                    sh 'flutter build web -t lib/main_dev.dart --release'
+                }
             }
         }
 
         stage('Deploy Web') {
             steps {
-                withEnv(["GOOGLE_APPLICATION_CREDENTIALS=$WORKSPACE/lib/config/firebase/google-services-dev.json"]) {
-                    sh 'firebase deploy --only hosting'
+                dir('avk-frontend') {
+                    withEnv(["GOOGLE_APPLICATION_CREDENTIALS=lib/config/firebase/google-services-dev.json"]) {
+                        sh 'firebase deploy --only hosting'
+                    }
                 }
             }
         }
 
         stage('Deploy Android') {
             steps {
-                sh """
-                firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
-                  --app $ANDROID_APP_ID \
-                  --groups "dev-testers" \
-                  --release-notes "Dev build ${BUILD_NUMBER}"
-                """
+                dir('avk-frontend') {
+                    sh """
+                    firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+                      --app $ANDROID_APP_ID \
+                      --groups "dev-testers" \
+                      --release-notes "Dev build ${BUILD_NUMBER}"
+                    """
+                }
             }
         }
 
         stage('Deploy iOS') {
             steps {
-                sh """
-                firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
-                  --app $IOS_APP_ID \
-                  --groups "dev-testers" \
-                  --release-notes "Dev build ${BUILD_NUMBER}"
-                """
+                dir('avk-frontend') {
+                    sh """
+                    firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
+                      --app $IOS_APP_ID \
+                      --groups "dev-testers" \
+                      --release-notes "Dev build ${BUILD_NUMBER}"
+                    """
+                }
             }
         }
     }
