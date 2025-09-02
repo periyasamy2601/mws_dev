@@ -2,11 +2,13 @@ pipeline {
     agent any
 
     environment {
-        FLUTTER_HOME = "/opt/flutter"                // Flutter SDK path on Jenkins node
+        FLUTTER_HOME = "/opt/flutter"
         PATH = "${env.FLUTTER_HOME}/bin:${env.PATH}"
         SONARQUBE_SERVER = "http://192.168.2.20:9000"
         SONARQUBE_TOKEN = credentials('sonarqube-token')
         FIREBASE_TOKEN = credentials('firebase-token')
+        ANDROID_APP_ID = "<YOUR_ANDROID_APP_ID>"   // Replace with your Firebase Android app ID
+        IOS_APP_ID = "<YOUR_IOS_APP_ID>"           // Replace with your Firebase iOS app ID
     }
 
     stages {
@@ -18,7 +20,7 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir("${WORKSPACE}") {                    // Ensure commands run from repo root
+                dir("${WORKSPACE}") {
                     sh 'flutter pub get'
                     sh 'cd ios && pod install && cd ..'
                     sh 'cd android && ./gradlew dependencies && cd ..'
@@ -50,10 +52,36 @@ pipeline {
             }
         }
 
+        stage('Set Version & Build Numbers') {
+            steps {
+                script {
+                    // Generate a build number based on Jenkins BUILD_NUMBER or timestamp
+                    env.BUILD_NUMBER_STR = "${env.BUILD_NUMBER ?: new Date().format('yyyyMMddHHmmss')}"
+                    echo "Using build number: ${env.BUILD_NUMBER_STR}"
+
+                    // Update Flutter version
+                    sh """
+                    sed -i "s/^version:.*/version: 1.0.${BUILD_NUMBER_STR}+${BUILD_NUMBER_STR}/" pubspec.yaml
+                    """
+
+                    // Update Android build numbers
+                    sh """
+                    sed -i "s/versionCode .*/versionCode ${BUILD_NUMBER_STR}/" android/app/build.gradle
+                    sed -i "s/versionName \".*\"/versionName \"1.0.${BUILD_NUMBER_STR}\"/" android/app/build.gradle
+                    """
+
+                    // Update iOS build numbers
+                    sh """
+                    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER_STR}" ios/Runner/Info.plist
+                    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.${BUILD_NUMBER_STR}" ios/Runner/Info.plist
+                    """
+                }
+            }
+        }
+
         stage('Build Dev') {
             steps {
                 dir("${WORKSPACE}") {
-                    echo 'Cleaning and fetching dependencies...'
                     sh 'flutter clean'
                     sh 'flutter pub get'
 
@@ -69,19 +97,34 @@ pipeline {
             }
         }
 
-        stage('Deploy Dev') {
+        stage('Deploy Dev (Firebase App Distribution)') {
             parallel {
-                stage('Web Deploy') {
+                stage('Android Deploy') {
                     steps {
                         dir("${WORKSPACE}") {
-                            sh 'firebase deploy --only hosting --token $FIREBASE_TOKEN'
+                            echo 'Uploading Android APK to Firebase App Distribution...'
+                            sh """
+                            firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+                              --app $ANDROID_APP_ID \
+                              --groups "dev-testers" \
+                              --release-notes "Dev build ${BUILD_NUMBER_STR}" \
+                              --token $FIREBASE_TOKEN
+                            """
                         }
                     }
                 }
-                stage('Mobile Deploy') {
+
+                stage('iOS Deploy') {
                     steps {
                         dir("${WORKSPACE}") {
-                            sh './firebaseScript.sh'   // Upload Android & iOS builds to Firebase App Distribution
+                            echo 'Uploading iOS IPA to Firebase App Distribution...'
+                            sh """
+                            firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
+                              --app $IOS_APP_ID \
+                              --groups "dev-testers" \
+                              --release-notes "Dev build ${BUILD_NUMBER_STR}" \
+                              --token $FIREBASE_TOKEN
+                            """
                         }
                     }
                 }
@@ -90,8 +133,11 @@ pipeline {
     }
 
     post {
-        success { echo 'Dev frontend pipeline completed successfully!' }
-        failure { echo 'Pipeline failed! Check logs for details.' }
+        success {
+            echo 'Dev frontend pipeline completed successfully with versioning and Firebase App Distribution!'
+        }
+        failure {
+            echo 'Pipeline failed! Check logs for details.'
+        }
     }
 }
-
