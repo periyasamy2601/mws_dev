@@ -6,7 +6,6 @@ pipeline {
         PATH = "${env.FLUTTER_HOME}/bin:/usr/local/bin:${env.PATH}" // Added /usr/local/bin for pod
         ANDROID_APP_ID = "1:796222979324:android:9f889d354edb178c1aeb79"
         IOS_APP_ID = "1:796222979324:ios:8f12cbf67ef2727a1aeb79"
-        SONAR_HOST_URL = "http://192.168.2.20:9000"
         SONAR_PROJECT_KEY = "mws_frontend"
         SONAR_PROJECT_NAME = "mws_frontend"
     }
@@ -35,17 +34,24 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 dir('avk-frontend') {
-                    withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
-                        sh '''
-                        flutter pub get
-                        sonar-scanner \
-                          -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                          -Dsonar.projectName=$SONAR_PROJECT_NAME \
-                          -Dsonar.host.url=$SONAR_HOST_URL \
-                          -Dsonar.login=$SONAR_TOKEN
-                          -Dsonar.sources=lib
-                        '''
+                    withSonarQubeEnv('SonarQube') {   // Must match name in Jenkins "Configure System"
+                        def scannerHome = tool 'SonarScanner' // Must match name in "Global Tool Configuration"
+                        sh """
+                            flutter pub get
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                              -Dsonar.projectName=$SONAR_PROJECT_NAME \
+                              -Dsonar.sources=lib
+                        """
                     }
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
