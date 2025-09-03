@@ -38,11 +38,12 @@ pipeline {
                     withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
                         sh '''
                         flutter pub get
-                        flutter pub run sonar_flutter_plugin:analyze \
+                        sonar-scanner \
                           -Dsonar.projectKey=$SONAR_PROJECT_KEY \
                           -Dsonar.projectName=$SONAR_PROJECT_NAME \
                           -Dsonar.host.url=$SONAR_HOST_URL \
                           -Dsonar.login=$SONAR_TOKEN
+                          -Dsonar.sources=lib
                         '''
                     }
                 }
