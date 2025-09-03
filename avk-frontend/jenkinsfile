@@ -3,72 +3,14 @@ pipeline {
 
     environment {
         FLUTTER_HOME = "/opt/flutter"
-        PATH = "${env.FLUTTER_HOME}/bin:/usr/local/bin:${env.PATH}" // Added /usr/local/bin for pod
-        ANDROID_APP_ID = "1:796222979324:android:9f889d354edb178c1aeb79"
-        IOS_APP_ID = "1:796222979324:ios:8f12cbf67ef2727a1aeb79"
-        SONAR_PROJECT_KEY = "mws_frontend"
-        SONAR_PROJECT_NAME = "mws_frontend"
+        PATH = "${env.FLUTTER_HOME}/bin:/usr/local/bin:${env.PATH}"
     }
 
     stages {
-
-        stage('Checkout') {
-            steps { 
-                checkout scm 
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                dir('avk-frontend') {
-                    sh 'flutter clean'
-                    sh 'flutter pub get'
-
-                    dir('ios') {
-                        sh 'pod install || true'  // Avoid failing if iOS not configured
-                    }
-                }
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                dir('avk-frontend') {
-                    withSonarQubeEnv('SonarQube') {   // Must match server name in Jenkins "Configure System"
-                        script {
-                            def scannerHome = tool 'sonar scanner'  // Must match tool name in Global Tool Configuration
-                            sh """
-                                flutter pub get
-                                ${scannerHome}/bin/sonar-scanner \
-                                  -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                                  -Dsonar.projectName=$SONAR_PROJECT_NAME \
-                                  -Dsonar.sources=lib
-                            """
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Versioning') {
-            steps {
-                dir('avk-frontend') {
-                    script {
-                        def versionFile = readFile('pubspec.yaml')
-                        def versionLine = versionFile.readLines().find { it.startsWith('version:') }
-                        def currentVersion = versionLine.split(':')[1].trim().split('\\+')[0]
-                        def buildNumber = versionLine.split('\\+')[1].trim().toInteger() + 1
-                        def newVersion = "${currentVersion}+${buildNumber}"
-                        sh "sed -i 's/version:.*/version: ${newVersion}/' pubspec.yaml"
-                        echo "Updated version to ${newVersion}"
-                    }
-                }
-            }
-        }
-
         stage('Build Dev') {
             steps {
                 dir('avk-frontend') {
+
                     echo 'Copying plist for iOS...'
                     sh 'cp lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
 
@@ -80,57 +22,13 @@ pipeline {
 
                     echo 'Building Web (Dev)...'
                     sh 'flutter build web --release -t lib/main_dev.dart'
-
-                    // Optional iOS build (requires macOS Jenkins agent)
-                    // echo 'Building iOS (Dev)...'
-                    // sh 'flutter build ios --release -t lib/main_dev.dart'
-                }
-            }
-        }
-
-        stage('Deploy Web') {
-            steps {
-                withCredentials([file(credentialsId: 'firebase_dev_json', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                    sh 'firebase deploy --only hosting'
-                }
-            }
-        }
-
-        stage('Deploy Android') {
-            steps {
-                dir('avk-frontend') {
-                    withCredentials([string(credentialsId: 'firebase_token', variable: 'FIREBASE_TOKEN')]) {
-                        sh """
-                        firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
-                          --app $ANDROID_APP_ID \
-                          --groups "dev-testers" \
-                          --release-notes "Dev build ${BUILD_NUMBER}" \
-                          --token $FIREBASE_TOKEN
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Deploy iOS') {
-            steps {
-                dir('avk-frontend') {
-                    withCredentials([string(credentialsId: 'firebase_token', variable: 'FIREBASE_TOKEN')]) {
-                        sh """
-                        firebase appdistribution:distribute build/ios/ipa/Runner.ipa \
-                          --app $IOS_APP_ID \
-                          --groups "dev-testers" \
-                          --release-notes "Dev build ${BUILD_NUMBER}" \
-                          --token $FIREBASE_TOKEN
-                        """
-                    }
                 }
             }
         }
     }
 
     post {
-        success { echo 'Dev frontend pipeline completed successfully!' }
-        failure { echo 'Pipeline failed! Check logs.' }
+        success { echo 'Build Dev stage completed successfully!' }
+        failure { echo 'Build Dev stage failed! Check logs.' }
     }
 }
