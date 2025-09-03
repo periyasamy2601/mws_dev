@@ -35,7 +35,7 @@ pipeline {
             steps {
                 dir('avk-frontend') {
                     withSonarQubeEnv('SonarQube') {   // Must match name in Jenkins "Configure System"
-                        def scannerHome = tool 'SonarScanner' // Must match name in "Global Tool Configuration"
+                        def scannerHome = tool 'sonar scanner' // Must match name in "Global Tool Configuration"
                         sh """
                             flutter pub get
                             ${scannerHome}/bin/sonar-scanner \
