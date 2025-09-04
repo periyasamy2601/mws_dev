@@ -16,7 +16,7 @@ pipeline {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/periyasamy2601/mws_dev.git',
-                    credentialsId: 'github-creds'   // add in Jenkins Credentials
+                    credentialsId: 'github_token_dev'   // add in Jenkins Credentials
             }
         }
 
