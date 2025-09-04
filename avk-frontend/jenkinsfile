@@ -13,8 +13,10 @@ pipeline {
     stages {
 
         stage('Checkout') {
-            steps { 
-                checkout scm 
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/periyasamy2601/mws_dev.git',
+                    credentialsId: 'github-creds'   // add in Jenkins Credentials
             }
         }
 
@@ -34,9 +36,9 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 dir('avk-frontend') {
-                    withSonarQubeEnv('SonarQube') {   // Must match server name in Jenkins "Configure System"
+                    withSonarQubeEnv('SonarQube') {
                         script {
-                            def scannerHome = tool 'sonar scanner'  // Must match tool name in Global Tool Configuration
+                            def scannerHome = tool 'sonar scanner'
                             sh """
                                 flutter pub get
                                 ${scannerHome}/bin/sonar-scanner \
