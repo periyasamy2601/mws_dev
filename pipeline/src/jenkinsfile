@@ -52,9 +52,21 @@ pipeline {
         }
 
         stage('Install Dependencies') {
-            agent { docker { image 'node:22' } }
+            agent {
+                docker {
+                    image 'node:22'
+                    args '--pull=always' // ensures image is pulled if missing
+                }
+            }
             steps {
                 dir("pipeline/src") {
+                    // Optional: Docker Hub login if needed
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
+                                                      usernameVariable: 'DOCKER_USER', 
+                                                      passwordVariable: 'DOCKER_PASS')]) {
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin || true'
+                    }
+
                     sh 'npm install'
                     sh 'npm install --save-dev @loopback/build'
                 }
@@ -128,7 +140,6 @@ pipeline {
                         }
 
                         def IMAGE_TAG = "${env.VERSION}.${env.BUILD_NUMBER ?: '1'}"
-
 
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
                                                           usernameVariable: 'DOCKER_USER', 
