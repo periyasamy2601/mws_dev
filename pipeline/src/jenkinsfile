@@ -51,23 +51,12 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            agent {
-                docker {
-                    image 'node:22'
-                    args '--pull=always' // ensures image is pulled if missing
-                }
-            }
+       stage('Install Dependencies') {
+            agent { label 'build-node' }
             steps {
-                dir("pipeline/src") {
-                    // Optional: Docker Hub login if needed
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
-                                                      usernameVariable: 'DOCKER_USER', 
-                                                      passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin || true'
-                    }
-
+                dir('pipeline/src') {
                     sh 'npm install'
+                    // Ensure loopback build tools installed
                     sh 'npm install --save-dev @loopback/build'
                 }
             }
