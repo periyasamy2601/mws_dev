@@ -1,10 +1,9 @@
 stage('Checkout') {
     steps {
-        deleteDir() // optional: cleans the workspace first
-        dir('avk-frontend') {  // clone repo into this directory
-            git branch: 'main',
-                url: 'https://github.com/periyasamy2601/mws_dev.git',
-                credentialsId: 'github_token_dev'
-        }
+        git(
+            branch: 'main',
+            url: 'https://github.com/periyasamy2601/mws_dev.git',
+            credentialsId: 'github_token_dev'
+        )
     }
 }
