@@ -52,7 +52,7 @@ pipeline {
         }
 
         stage('Install Dependencies') {
-            agent { label 'build-node' }
+            agent { docker { image 'node:22' } }
             steps {
                 dir("pipeline/src") {
                     sh 'npm install'
