@@ -1,7 +1,10 @@
 stage('Checkout') {
     steps {
-        git branch: 'main',
-            url: 'https://github.com/periyasamy2601/mws_dev.git',
-            credentialsId: 'github_token_dev'
+        deleteDir()
+        dir('avk-frontend') {
+            git branch: 'main',
+                url: 'https://github.com/periyasamy2601/mws_dev.git',
+                credentialsId: 'github_token_dev'
+        }
     }
 }
