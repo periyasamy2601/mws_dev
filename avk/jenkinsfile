@@ -12,7 +12,7 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 script {
-                    def envProps = readProperties file: 'pipeline/src/.env'
+                    def envProps = readProperties file: 'avk/env/.env.development'
                     envProps.each { key, value -> env["${key}"] = "${value}" }
                     echo "Environment variables loaded from .env"
                 }
