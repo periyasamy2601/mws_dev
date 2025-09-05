@@ -12,22 +12,19 @@ pipeline {
 
     stages {
 
-        stage('Load Environment') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def envProps = readProperties file: 'avk/env/.env.development'
-                    envProps.each { key, value -> env["${key}"] = "${value}" }
-                    echo "Environment variables loaded from .env"
-                }
-            }
-        }
-
-        stage('Checkout Code') {
+        stage('Checkout & Load Environment') {
             agent { label 'build-node' }
             steps {
                 deleteDir()
+                // Checkout once
                 git branch: 'main', url: 'https://github.com/periyasamy2601/mws_dev.git', credentialsId: 'github_token_dev'
+
+                // Load environment variables
+                script {
+                    def envProps = readProperties file: 'env/.env.development'
+                    envProps.each { key, value -> env["${key}"] = "${value}" }
+                    echo "Environment variables loaded from .env"
+                }
             }
         }
 
@@ -44,7 +41,7 @@ pipeline {
                                 -Dsonar.projectName=${env.SONAR_PROJECT_NAME} \
                                 -Dsonar.sources=. \
                                 -Dsonar.host.url=${env.SONAR_HOST} \
-                                -Dsonar.login=${SONAR_TOKEN} \
+                                -Dsonar.token=${SONAR_TOKEN} \
                                 -Dsonar.scanner.workDirectory=${env.WORKSPACE}/.sonar
                             """
                         }
@@ -67,7 +64,7 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 dir('avk') {
-                    sh './build.sh' // or 'npm run build'
+                    sh 'bash ./build.sh'
                 }
             }
         }
@@ -92,7 +89,7 @@ pipeline {
             when {
                 allOf {
                     expression { params.MIGRATE == true }
-                    expression { fileExists('migrate.sh') }
+                    expression { fileExists('avk/migrate.sh') }
                 }
             }
             steps {
