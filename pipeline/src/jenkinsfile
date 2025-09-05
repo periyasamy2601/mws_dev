@@ -149,6 +149,7 @@ pipeline {
                         docker rm -f mws_avk_api_dev || true
                         docker run -d --name mws_avk_api_dev \
                             -p 3000:3000 \
+                            -e HOST=0.0.0.0 \
                             -e DB_HOST=${env.DB_HOST} \
                             -e DB_PORT=${env.DB_PORT} \
                             -e DB_NAME=${env.DB_NAME} \
@@ -156,21 +157,7 @@ pipeline {
                             -e DB_PASS=${env.DB_PASS} \
                             ${env.DOCKER_IMAGE}:${IMAGE_TAG}
                     """
-                }
-            }
-        }
-    }
 
-    post {
-        success {
-            echo "Pipeline finished successfully."
-        }
-        failure {
-            echo "Pipeline failed."
-        }
-        always {
-            node('build-node') { cleanWs() }
-            node('docker-node') { cleanWs() }
-        }
-    }
-}
+                    echo "Cleaning up old Docker images..."
+                    sh "docker image prune -af || true"
+                }
