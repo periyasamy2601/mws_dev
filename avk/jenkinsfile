@@ -48,21 +48,11 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            agent { label 'build-node' }
-            steps {
-                dir('avk') {
-                    sh 'npm install'
-                    sh 'npm install --save-dev @loopback/build'
-                }
-            }
-        }
-
         stage('Build Application') {
             agent { label 'build-node' }
             steps {
                 dir('avk') {
-                    // Use bash to run build.sh to avoid permission issues
+                    // Run build.sh to install dependencies and build the app
                     sh 'bash ./build.sh'
                 }
             }
