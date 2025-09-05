@@ -52,23 +52,10 @@ pipeline {
             agent { label 'build-node' }
             steps {
                 dir('avk') {
-                    // Run build.sh to install dependencies and build the app
+                    // Run build.sh to create build/ folder and build artifacts
                     sh 'bash ./build.sh'
-                }
-            }
-        }
-
-        stage('Verify & Stash Build Artifacts') {
-            agent { label 'build-node' }
-            steps {
-                script {
-                    def DIST_DIR = "avk/dist"
-                    if (!fileExists(DIST_DIR)) {
-                        error "Build artifacts not found in ${DIST_DIR}"
-                    } else {
-                        echo "Build artifacts found in ${DIST_DIR}"
-                        stash includes: 'avk/dist/**', name: 'dist-artifacts'
-                    }
+                    // Stash the build folder for Docker context
+                    stash includes: 'build/**', name: 'build-artifacts'
                 }
             }
         }
@@ -110,7 +97,7 @@ pipeline {
             agent { label 'docker-node' }
             steps {
                 dir('avk') {
-                    unstash 'dist-artifacts'
+                    unstash 'build-artifacts'
                     script {
                         def IMAGE_TAG = "${env.VERSION ?: '1.0.0'}.${env.BUILD_NUMBER ?: '1'}"
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', 
