@@ -78,7 +78,7 @@ pipeline {
             when {
                 allOf {
                     expression { params.MIGRATE == true }
-                    expression { fileExists('migrate.sh') }
+                    expression { fileExists('avk/migrate.sh') }
                 }
             }
             steps {
