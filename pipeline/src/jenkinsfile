@@ -13,7 +13,7 @@ pipeline {
                 script {
                     def envProps = readProperties file: 'pipeline/src/.env'
                     envProps.each { key, value -> env["${key}"] = "${value}" }
-                    echo "✅ Environment variables loaded from .env"
+                    echo "Environment variables loaded from .env"
                 }
             }
         }
@@ -77,9 +77,9 @@ pipeline {
                 script {
                     def DIST_DIR = "pipeline/src/dist"
                     if (!fileExists(DIST_DIR)) {
-                        error "❌ Build artifacts not found in ${DIST_DIR}. Run 'npm run build' first."
+                        error "Build artifacts not found in ${DIST_DIR}. Run 'npm run build' first."
                     } else {
-                        echo "✅ Build artifacts found in ${DIST_DIR}"
+                        echo "Build artifacts found in ${DIST_DIR}"
                         sh "ls -l ${DIST_DIR}"
                     }
                 }
@@ -105,9 +105,9 @@ pipeline {
                             """
                             echo "Running migrations..."
                             sh "node dist/migrate.js"
-                            echo "✅ Migrations completed."
+                            echo "Migrations completed."
                         } catch (err) {
-                            echo "❌ Migration failed! Restoring database..."
+                            echo "Migration failed! Restoring database..."
                             sh """
                                 PGPASSWORD=${env.DB_PASS} psql -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
                                 -d ${env.DB_NAME} -f ${env.BACKUP_FILE}
@@ -125,7 +125,7 @@ pipeline {
                 dir('pipeline/src') {
                     script {
                         if (!fileExists("dist")) {
-                            error "❌ dist folder not found. Run 'npm run build' first."
+                            error "dist folder not found. Run 'npm run build' first."
                         }
 
                         def IMAGE_TAG = "${env.VERSION}.${env.BUILD_NUMBER ?: '1'}"
@@ -140,7 +140,7 @@ pipeline {
                             """
                         }
 
-                        echo "✅ Docker image built and pushed: ${env.DOCKER_IMAGE}:${IMAGE_TAG}"
+                        echo "Docker image built and pushed: ${env.DOCKER_IMAGE}:${IMAGE_TAG}"
                     }
                 }
             }
@@ -169,10 +169,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline finished successfully."
+            echo "Pipeline finished successfully."
         }
         failure {
-            echo "❌ Pipeline failed."
+            echo "Pipeline failed."
         }
         always {
             node('build-node') {
