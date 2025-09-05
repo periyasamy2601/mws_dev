@@ -38,3 +38,4 @@ EXPOSE ${PORT}
 
 # Run the application
 CMD ["node", "build/index.js"]
+
