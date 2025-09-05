@@ -56,7 +56,7 @@ pipeline {
                     sh 'npm install'
                     sh 'npm run build'
                     // Stash the build folder for Docker context
-                    stash includes: 'build/**', name: 'build-artifacts'
+                    stash includes: 'dist/**', name: 'build-artifacts'
                 }
             }
         }
