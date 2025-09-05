@@ -13,7 +13,7 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Build the app (adjust if your project has a build step)
+# Build the app (TypeScript -> dist/)
 RUN npm run build
 
 # ---------- STAGE 2: Production ----------
@@ -27,7 +27,7 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 
 # Copy only built files and production dependencies
-COPY --from=builder /home/node/app/build ./dist
+COPY --from=builder /home/node/app/dist ./dist
 COPY --from=builder /home/node/app/package*.json ./
 
 # Install only production dependencies
@@ -38,4 +38,3 @@ EXPOSE ${PORT}
 
 # Run the application
 CMD ["node", "dist/index.js"]
-
