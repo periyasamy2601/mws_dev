@@ -79,7 +79,7 @@ pipeline {
                     } else {
                         echo "Build artifacts found in ${DIST_DIR}"
                         sh "ls -l ${DIST_DIR}"
-                        stash includes: 'pipeline/src/dist/**', name: 'dist-artifacts'
+                        stash includes: 'dist/**', name: 'dist-artifacts'
                     }
                 }
             }
