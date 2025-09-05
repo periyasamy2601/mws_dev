@@ -62,26 +62,26 @@ pipeline {
 
         stage('Run Database Migrations') {
            agent { label 'build-node' }
-           when {
-           allOf {
-              expression { params.MIGRATE == true }
-              expression { fileExists('avk/migrate.sh') }
-         }
-       }
-        steps {
-          dir('avk') {
-             script {
-                 try {
+             when {
+                allOf {
+                     expression { params.MIGRATE == true }
+                     expression { fileExists('avk/migrate.sh') }
+        }
+    }
+    steps {
+        dir('avk') {
+            script {
+                try {
                     echo "Backing up database..."
                     sh """
                         PGPASSWORD=${env.DB_PASS} pg_dump -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
                         -F p -f ${env.BACKUP_FILE} ${env.DB_NAME}
                     """
 
-                    echo "Restoring database (ignoring ownership/privileges)..."
+                    echo "Restoring database (plain text format)..."
                     sh """
-                        PGPASSWORD=${env.DB_PASS} pg_restore -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
-                        --no-owner --no-privileges -d ${env.DB_NAME} ${env.BACKUP_FILE}
+                        PGPASSWORD=${env.DB_PASS} psql -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
+                        -d ${env.DB_NAME} -f ${env.BACKUP_FILE}
                     """
 
                     echo "Running migrations..."
@@ -91,8 +91,8 @@ pipeline {
                 } catch (err) {
                     echo "Migration failed! Restoring database..."
                     sh """
-                        PGPASSWORD=${env.DB_PASS} pg_restore -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
-                        --no-owner --no-privileges -d ${env.DB_NAME} ${env.BACKUP_FILE}
+                        PGPASSWORD=${env.DB_PASS} psql -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
+                        -d ${env.DB_NAME} -f ${env.BACKUP_FILE}
                     """
                     error "Migration failed. Database restored."
                 }
