@@ -78,7 +78,7 @@ pipeline {
                                 -F p -f ${env.BACKUP_FILE} ${env.DB_NAME}
                             """
                             echo "Running migrations..."
-                            sh './migrate.sh'
+                            sh 'chmod +x migrate.sh && ./migrate.sh'
                             echo "Migrations completed."
                         } catch (err) {
                             echo "Migration failed! Restoring database..."
