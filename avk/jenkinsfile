@@ -91,7 +91,7 @@ pipeline {
             when {
                 allOf {
                     expression { params.MIGRATE == true }
-                    expression { fileExists('pipeline/src/dist/migrate.js') }
+                    expression { fileExists('avk/dist/migrate.js') }
                 }
             }
             steps {
