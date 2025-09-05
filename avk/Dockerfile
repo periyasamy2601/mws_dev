@@ -27,7 +27,7 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 
 # Copy only built files and production dependencies
-COPY --from=builder /home/node/app/build ./build
+COPY --from=builder /home/node/app/build ./dist
 COPY --from=builder /home/node/app/package*.json ./
 
 # Install only production dependencies
@@ -37,5 +37,5 @@ RUN npm install --omit=dev
 EXPOSE ${PORT}
 
 # Run the application
-CMD ["node", "build/index.js"]
+CMD ["node", "dist/index.js"]
 
