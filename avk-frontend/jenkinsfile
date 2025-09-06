@@ -19,6 +19,25 @@ pipeline {
                     credentialsId: 'github_token_dev'   // add in Jenkins Credentials
             }
         }
+  stage('SonarQube Analysis') {
+            steps {
+                dir('avk-frontend') {
+                    withSonarQubeEnv('SonarQube') {
+                        script {
+                            def scannerHome = tool 'sonar scanner'
+                            sh """
+                                flutter pub get
+                                ${scannerHome}/bin/sonar-scanner \
+                                  -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                                  -Dsonar.projectName=$SONAR_PROJECT_NAME \
+                                  -Dsonar.sources=lib
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
 
         stage('Install Dependencies') {
             steps {
