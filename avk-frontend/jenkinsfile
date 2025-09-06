@@ -50,7 +50,7 @@ pipeline {
             }
         }
 // Android Build Stage
-        stage('Build Android (Prod)') {
+        stage('Build Android (Dev)') {
             steps {
                 dir('avk-frontend') {
                     script {
@@ -62,7 +62,7 @@ pipeline {
         }
 
         // Web Build Stage
-        stage('Build Web (Prod)') {
+        stage('Build Web (Dev)') {
             steps {
                 dir('avk-frontend') {
                     script {
@@ -74,7 +74,7 @@ pipeline {
         }
 
         // iOS Build Stage (macOS only)
-        stage('Build iOS (Prod)') {
+        stage('Build iOS (Dev)') {
             when {
                 expression { isUnix() } // only runs on Unix/macOS
             }
