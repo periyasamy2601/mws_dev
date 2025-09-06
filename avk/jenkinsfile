@@ -39,51 +39,30 @@ pipeline {
             }
         }
 
-        stage('Run Database Migrations') {
-            agent { label 'build-node' }
+      stage('Run Database Migrations') {
+         agent { label 'build-node' }
             when {
-                allOf {
-                    expression { params.MIGRATE == true }
-                    expression { fileExists('avk/migrate.sh') }
-                }
-            }
-            steps {
-                dir('avk') {
-                    script {
-                        try {
-                            echo "Backing up database..."
-                            sh """
-                                PGPASSWORD=${env.DB_PASS} pg_dump -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
-                                -F p -f ${env.BACKUP_FILE} ${env.DB_NAME}
-                            """
-
-                            echo "Restoring database (plain text format)..."
-                            sh """
-                                PGPASSWORD=${env.DB_PASS} psql -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
-                                -d ${env.DB_NAME} -f ${env.BACKUP_FILE}
-                            """
-
-                            echo "Running migrations..."
-                            sh 'chmod +x migrate.sh && ./migrate.sh'
-
-                            echo "Migrations completed."
-                        } catch (err) {
-                            echo "Migration failed! Restoring database..."
-                            sh """
-                                PGPASSWORD=${env.DB_PASS} psql -h ${env.DB_HOST} -U ${env.DB_USER} -p ${env.DB_PORT} \
-                                -d ${env.DB_NAME} -f ${env.BACKUP_FILE}
-                            """
-                            error "Migration failed. Database restored."
-                        }
-                    }
-                }
-            }
+              allOf {
+            expression { params.MIGRATE == true }
+            expression { fileExists('avk/migrate.sh') }
         }
-
-      stage('Build Docker Image') {
-    agent { label 'docker-node' }
+    }
     steps {
         dir('avk') {
+            script {
+                echo "Running migrations..."
+                sh 'chmod +x migrate.sh && ./migrate.sh'
+                echo "Migrations completed."
+            }
+        }
+    }
+}
+
+
+      stage('Build Docker Image') {
+        agent { label 'docker-node' }
+       steps {
+          dir('avk') {
             unstash 'build-artifacts'
             script {
                 // Define image tag
