@@ -122,7 +122,7 @@ pipeline {
                 script {
                     def IMAGE_TAG = "${env.VERSION ?: '1.0.0'}.${env.BUILD_NUMBER ?: '1'}"
                     sh """
-                        docker run -d --name mws_avk_api_dev1 \
+                        docker run -d --name mws_avk_api_dev9 \
                             -p 8081:8081 \
                             -e HOST=0.0.0.0 \
                             -e DB_HOST=${env.DB_HOST} \
