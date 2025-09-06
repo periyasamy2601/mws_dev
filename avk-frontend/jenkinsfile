@@ -50,27 +50,50 @@ pipeline {
             }
         }
 
-        stage('Build Dev') {
-            steps {
-                dir('avk-frontend') {
-                    echo 'Copying plist for iOS...'
-                    sh 'cp lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
+// Android Build Stage
+stage('Build Android (Dev)') {
+    steps {
+        dir('avk-frontend') {
+            script {
+                echo 'Copying google-services JSON for Android...'
+                sh 'cp lib/config/firebase/google-services-dev.json android/app/google-services.json'
 
-                    echo 'Copying google-services JSON for Android...'
-                    sh 'cp lib/config/firebase/google-services-dev.json android/app/google-services.json'
-
-                    echo 'Building Android APK (Dev)...'
-                    sh 'flutter build apk --release -t lib/main_dev.dart'
-
-                    echo 'Building Web (Dev)...'
-                    sh 'flutter build web --release -t lib/main_dev.dart'
-
-                    // Optional iOS build (requires macOS Jenkins agent)
-                    // echo 'Building iOS (Dev)...'
-                    // sh 'flutter build ios --release -t lib/main_dev.dart'
-                }
+                echo 'Building Android APK (Dev)...'
+                sh 'flutter build apk --release -t lib/main_dev.dart'
             }
         }
+    }
+}
+
+// Web Build Stage
+stage('Build Web (Dev)') {
+    steps {
+        dir('avk-frontend') {
+            script {
+                echo 'Building Web (Dev)...'
+                sh 'flutter build web --release -t lib/main_dev.dart'
+            }
+        }
+    }
+}
+
+// iOS Build Stage (Requires macOS Jenkins agent)
+stage('Build iOS (Dev)') {
+    when {
+        expression { isUnix() } // ensures only runs on macOS or Unix agent
+    }
+    steps {
+        dir('avk-frontend') {
+            script {
+                echo 'Copying plist for iOS...'
+                sh 'cp lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
+
+                echo 'Building iOS (Dev)...'
+                sh 'flutter build ios --release -t lib/main_dev.dart'
+            }
+        }
+    }
+}
 
         stage('Deploy Web') {
             steps {
