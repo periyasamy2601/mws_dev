@@ -49,51 +49,46 @@ pipeline {
                 }
             }
         }
-
 // Android Build Stage
-stage('Build Android (Dev)') {
-    steps {
-        dir('avk-frontend') {
-            script {
-                echo 'Copying google-services JSON for Android...'
-                sh 'cp lib/config/firebase/google-services-dev.json android/app/google-services.json'
+        stage('Build Android (Prod)') {
+            steps {
+                dir('avk-frontend') {
+                    script {
+                        echo 'Building Android APK (Prod)...'
+                        sh 'flutter build apk --release --flavor prod -t lib/main_prod.dart'
+                    }
+                }
+            }
+        }
 
-                echo 'Building Android APK (Dev)...'
-                sh 'flutter build apk --release -t lib/main_dev.dart'
+        // Web Build Stage
+        stage('Build Web (Prod)') {
+            steps {
+                dir('avk-frontend') {
+                    script {
+                        echo 'Building Web App (Prod)...'
+                        sh 'flutter build web --release -t lib/main_prod.dart'
+                    }
+                }
+            }
+        }
+
+        // iOS Build Stage (macOS only)
+        stage('Build iOS (Prod)') {
+            when {
+                expression { isUnix() } // only runs on Unix/macOS
+            }
+            steps {
+                dir('avk-frontend') {
+                    script {
+                        echo 'Building iOS App (Prod)...'
+                        sh 'flutter build ios --flavor prod -t lib/main_prod.dart'
+                    }
+                }
             }
         }
     }
-}
 
-// Web Build Stage
-stage('Build Web (Dev)') {
-    steps {
-        dir('avk-frontend') {
-            script {
-                echo 'Building Web App (Dev)...'
-                sh 'flutter build web --release -t lib/main_dev.dart'
-            }
-        }
-    }
-}
-
-// iOS Build Stage (macOS only)
-stage('Build iOS (Dev)') {
-    when {
-        expression { isUnix() } // ensures only runs on macOS agent
-    }
-    steps {
-        dir('avk-frontend') {
-            script {
-                echo 'Copying plist for iOS...'
-                sh 'cp lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
-
-                echo 'Building iOS App (Dev)...'
-                sh 'flutter build ios --release -t lib/main_dev.dart'
-            }
-        }
-    }
-}
 
         stage('Deploy Web') {
             steps {
