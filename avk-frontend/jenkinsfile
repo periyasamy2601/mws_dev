@@ -70,17 +70,17 @@ stage('Build Web (Dev)') {
     steps {
         dir('avk-frontend') {
             script {
-                echo 'Building Web (Dev)...'
+                echo 'Building Web App (Dev)...'
                 sh 'flutter build web --release -t lib/main_dev.dart'
             }
         }
     }
 }
 
-// iOS Build Stage (Requires macOS Jenkins agent)
+// iOS Build Stage (macOS only)
 stage('Build iOS (Dev)') {
     when {
-        expression { isUnix() } // ensures only runs on macOS or Unix agent
+        expression { isUnix() } // ensures only runs on macOS agent
     }
     steps {
         dir('avk-frontend') {
@@ -88,7 +88,7 @@ stage('Build iOS (Dev)') {
                 echo 'Copying plist for iOS...'
                 sh 'cp lib/config/firebase/GoogleService-Info-dev.plist ios/Runner/GoogleService-Info.plist'
 
-                echo 'Building iOS (Dev)...'
+                echo 'Building iOS App (Dev)...'
                 sh 'flutter build ios --release -t lib/main_dev.dart'
             }
         }
