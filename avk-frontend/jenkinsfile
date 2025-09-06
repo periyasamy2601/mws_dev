@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         FLUTTER_HOME = "/opt/flutter"
-        PATH = "${env.FLUTTER_HOME}/bin:/usr/local/bin:${env.PATH}"
+        PATH = "${env.FLUTTER_HOME}/bin:/usr/local/bin:${env.PATH}" // Added /usr/local/bin for pod
         ANDROID_APP_ID = "1:796222979324:android:9f889d354edb178c1aeb79"
         IOS_APP_ID = "1:796222979324:ios:8f12cbf67ef2727a1aeb79"
         SONAR_PROJECT_KEY = "mws_frontend"
@@ -16,7 +16,7 @@ pipeline {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/periyasamy2601/mws_dev.git',
-                    credentialsId: 'github_token_dev'
+                    credentialsId: 'github_token_dev'   // add in Jenkins Credentials
             }
         }
 
@@ -27,12 +27,13 @@ pipeline {
                     sh 'flutter pub get'
 
                     dir('ios') {
-                        sh 'pod install || true'
+                        sh 'pod install || true'  // Avoid failing if iOS not configured
                     }
                 }
             }
         }
 
+      
         stage('Versioning') {
             steps {
                 dir('avk-frontend') {
@@ -50,7 +51,7 @@ pipeline {
         }
 
         // Android Build Stage
-        stage('Build Android (Prod)') {
+        stage('Build Android (Dev)') {
             steps {
                 dir('avk-frontend') {
                     script {
@@ -62,7 +63,7 @@ pipeline {
         }
 
         // Web Build Stage
-        stage('Build Web (Prod)') {
+        stage('Build Web (Dev)') {
             steps {
                 dir('avk-frontend') {
                     script {
@@ -74,9 +75,9 @@ pipeline {
         }
 
         // iOS Build Stage (macOS only)
-        stage('Build iOS (Prod)') {
+        stage('Build iOS (Dev)') {
             when {
-                expression { isUnix() }
+                expression { isUnix() } // only runs on Unix/macOS
             }
             steps {
                 dir('avk-frontend') {
@@ -88,7 +89,6 @@ pipeline {
             }
         }
 
-        // Deploy Web
         stage('Deploy Web') {
             steps {
                 withCredentials([file(credentialsId: 'firebase_dev_json', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
@@ -97,7 +97,6 @@ pipeline {
             }
         }
 
-        // Deploy Android
         stage('Deploy Android') {
             steps {
                 dir('avk-frontend') {
@@ -114,7 +113,6 @@ pipeline {
             }
         }
 
-        // Deploy iOS
         stage('Deploy iOS') {
             steps {
                 dir('avk-frontend') {
