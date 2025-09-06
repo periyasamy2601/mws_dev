@@ -75,7 +75,7 @@ pipeline {
                 dir('avk-frontend') {
                     script {
                         echo 'Building Android APK (Prod)...'
-                        sh 'flutter build apk --release --flavor prod -t lib/main_prod.dart'
+                        sh 'flutter build apk --release --flavor dev -t lib/main_dev.dart'
                     }
                 }
             }
@@ -87,7 +87,7 @@ pipeline {
                 dir('avk-frontend') {
                     script {
                         echo 'Building Web App (Prod)...'
-                        sh 'flutter build web --release -t lib/main_prod.dart'
+                        sh 'flutter build web --release -t lib/main_dev.dart'
                     }
                 }
             }
@@ -102,7 +102,7 @@ pipeline {
                 dir('avk-frontend') {
                     script {
                         echo 'Building iOS App (Prod)...'
-                        sh 'flutter build ios --flavor prod -t lib/main_prod.dart'
+                        sh 'flutter build ios --flavor dev -t lib/main_dev.dart'
                     }
                 }
             }
