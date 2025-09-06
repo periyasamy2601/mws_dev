@@ -18,7 +18,7 @@ pipeline {
             }
         }
 
-        stage('Checkout Code') {
+      stage('Checkout Code') {
             agent { label 'build-node' }
             steps {
                 deleteDir()
@@ -26,27 +26,6 @@ pipeline {
             }
         }
 
-        stage('SonarQube Scan') {
-            agent { label 'build-node' }
-            steps {
-                dir('avk') {
-                    withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
-                        script {
-                            def scannerHome = tool 'sonar scanner'
-                            sh """
-                                ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
-                                -Dsonar.projectName=${env.SONAR_PROJECT_NAME} \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${env.SONAR_HOST} \
-                                -Dsonar.token=${SONAR_TOKEN} \
-                                -Dsonar.scanner.workDirectory=${env.WORKSPACE}/.sonar
-                            """
-                        }
-                    }
-                }
-            }
-        }
 
         stage('Build Application') {
             agent { label 'build-node' }
